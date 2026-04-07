@@ -157,6 +157,53 @@ const fbDel = (col, id) => {
 const $$    = n => new Intl.NumberFormat("es-AR",{style:"currency",currency:"ARS",maximumFractionDigits:0}).format(n);
 const $$usd = n => new Intl.NumberFormat("es-AR",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(n);
 const fmtD  = s => { if(!s) return ""; const [y,m,d]=s.split("-"); return `${d}/${m}/${y}`; };
+
+/* ══════════════════════════════════════════════════════
+   NOTIFICACIONES — EmailJS + Web Notifications API
+   ──────────────────────────────────────────────────────
+   Para activar EmailJS:
+   1. Creá una cuenta en https://www.emailjs.com (plan gratis = 200 emails/mes)
+   2. Conectá tu cuenta de Gmail como "Email Service"
+   3. Creá un template con estas variables:
+        {{to_email}}  {{subject}}  {{message}}
+   4. Copiá los IDs a las constantes de abajo.
+══════════════════════════════════════════════════════ */
+const EMAILJS_SERVICE_ID  = "TU_SERVICE_ID";   // ej: "service_abc123"
+const EMAILJS_TEMPLATE_ID = "TU_TEMPLATE_ID";  // ej: "template_xyz789"
+const EMAILJS_PUBLIC_KEY  = "TU_PUBLIC_KEY";   // ej: "AbCdEfGhIjKlMnOp"
+const NOTIF_TO_EMAIL      = "hagridsvla@gmail.com";
+const EMAILJS_READY       = EMAILJS_SERVICE_ID !== "TU_SERVICE_ID";
+
+// Envía email vía EmailJS REST API (sin SDK, funciona en cualquier proyecto)
+const sendEmail = async (subject, message) => {
+  if(!EMAILJS_READY) return;
+  try {
+    await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        service_id:  EMAILJS_SERVICE_ID,
+        template_id: EMAILJS_TEMPLATE_ID,
+        user_id:     EMAILJS_PUBLIC_KEY,
+        template_params: { to_email: NOTIF_TO_EMAIL, subject, message },
+      }),
+    });
+    console.log("[FANG] Email enviado:", subject);
+  } catch(e) { console.warn("[FANG] Error al enviar email:", e); }
+};
+
+// Muestra notificación del navegador (si el usuario dio permiso)
+const sendBrowserNotif = (title, body) => {
+  if(typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  try { new Notification(title, { body, icon: "/favicon.ico", tag: "fang-notif" }); }
+  catch(e) { console.warn("[FANG] Browser notif error:", e); }
+};
+
+// Helper principal: dispara email + notificación del navegador
+const sendNotification = (title, body) => {
+  sendEmail(title, body);
+  sendBrowserNotif(title, body);
+};
 const MONTHS= ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const DAYS  = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
 const PLAT_C= { Airbnb:"#D95F5F", Booking:"#2A5FA8", Directo:"#3B6E52" };
@@ -234,21 +281,25 @@ const PAY_STATUS_C = {
 // El objeto se actualiza en LoginGate cuando el usuario se autentica.
 // role: "admin" | "owner"
 let CURRENT_USER = {
-  id:      "anon",
-  role:    "owner", // por defecto sin permisos de escritura hasta autenticar
-  email:   "",
-  propIds: [], // IDs de propiedades asignadas al owner (vacío = sin acceso)
+  id:         "anon",
+  role:       "owner", // por defecto sin permisos de escritura hasta autenticar
+  email:      "",
+  propIds:    [], // IDs de propiedades asignadas al owner (vacío = sin acceso)
+  canAddRes:  false, // owner puede crear reservas (pero no editar ni eliminar)
 };
 
-// true si el usuario actual puede escribir datos
+// true si el usuario actual puede escribir datos generales
 const canWrite = () => CURRENT_USER.role === "admin";
 
-// Filtra un array por ownerId según el rol del usuario actual.
-// admin → devuelve todo; owner → solo sus registros.
+// true si puede crear reservas nuevas (admin siempre; owner solo si tiene el flag)
+const canAddReservation = () => CURRENT_USER.role === "admin" || CURRENT_USER.canAddRes === true;
+
+// Filtra un array según el rol del usuario actual.
+// admin → devuelve todo; owner → solo registros de sus propiedades asignadas (propIds).
 const filterByUser = arr =>
   CURRENT_USER.role === "admin"
     ? arr
-    : arr.filter(x => x.ownerId === CURRENT_USER.id);
+    : arr.filter(x => CURRENT_USER.propIds.includes(x.pid || x.pidManual || ""));
 
 /* ══════════════════════════════════════════════════════════
    BLOQUE 3 — CAPA DE DATOS: useReservas
@@ -276,12 +327,8 @@ function useReservas() {
 
   // Agrega una reserva nueva
   const saveReserva = async (reserva) => {
-    if(!canWrite()) return;
+    if(!canWrite() && !canAddReservation()) return;
     try {
-      // Normalización: asegurar que paidAmount y payments estén siempre presentes.
-      // Si el formulario incluyó una seña, se convierte en el primer payment registrado.
-      // senia/seniaDate se preservan en el objeto como campos de referencia para el
-      // reporte de "señas del período" — ya no son fuente de verdad para getPaymentStatus.
       const seniaNorm = +(reserva.senia)||0;
       const normalized = {
         ...reserva,
@@ -293,6 +340,15 @@ function useReservas() {
       };
       setRes(prev => [...prev, normalized]);
       fbSet("reservas", normalized.id, normalized);
+
+      // Notificación al guardar reserva nueva
+      const cur  = reserva.cur === "USD" ? "USD" : "ARS";
+      const monto= cur === "USD" ? `USD ${+(reserva.amt)||0}` : `ARS ${(+(reserva.amt)||0).toLocaleString("es-AR")}`;
+      const quien= CURRENT_USER.role === "owner" ? ` · cargada por ${CURRENT_USER.email}` : "";
+      sendNotification(
+        "🏠 Nueva reserva en FANG",
+        `${reserva.guest} · ${fmtD(reserva.ci)} → ${fmtD(reserva.co)} · ${monto}${quien}`
+      );
     } catch(e) {
       console.error("[useReservas] Error al guardar reserva:", e);
       throw e;
@@ -368,7 +424,7 @@ function App() {
      Al migrar a Firebase, estos useState se reemplazan
      por listeners de Firestore sin cambiar la estructura.
   ───────────────────────────────────────────────────── */
-  const [view,    setView]   = useState("dashboard");
+  const [view,    setView]   = useState(CURRENT_USER.role === "owner" ? "calendario" : "dashboard");
   // TODAY reactivo: se actualiza automáticamente a medianoche sin recargar la app
   const [todayStr, setTodayStr] = useState(getToday);
   useEffect(()=>{
@@ -426,6 +482,12 @@ function App() {
 
   // Vistas filtradas por usuario — admin ve todo, owner ve solo los suyos
   // Nota: setTasks/setGastos/setPagos/setLaundry siguen operando sobre el array completo
+  // props_ y res también se filtran para owners
+  const isOwner = CURRENT_USER.role === "owner";
+  const allowedProps = useMemo(() =>
+    isOwner ? props_.filter(p => CURRENT_USER.propIds.includes(p.id)) : props_,
+    [props_]
+  );
   const tasks   = useMemo(() => filterByUser(_tasks),   [_tasks]);
   const laundry = useMemo(() => filterByUser(_laundry), [_laundry]);
   const gastos  = useMemo(() => filterByUser(_gastos),  [_gastos]);
@@ -771,10 +833,21 @@ function App() {
       if(!res_.ok) throw new Error(`HTTP ${res_.status}`);
       const text = await res_.text();
       const parsed = parseICS(text, prop.id);
-      setExternalRes(prev => [
-        ...prev.filter(r=>r.pid!==prop.id), // reemplaza los de esta prop
-        ...parsed
-      ]);
+
+      // Detectar reservas realmente nuevas (ids que no existían antes)
+      setExternalRes(prev => {
+        const prevIds = new Set(prev.filter(r=>r.pid===prop.id).map(r=>r.id));
+        const nuevas  = parsed.filter(r=>!prevIds.has(r.id));
+        if(nuevas.length > 0) {
+          nuevas.forEach(r => {
+            sendNotification(
+              `📅 Nueva reserva iCal — ${prop.name}`,
+              `${r.guest||"Huésped"} · ${fmtD(r.ci)} → ${fmtD(r.co)}`
+            );
+          });
+        }
+        return [...prev.filter(r=>r.pid!==prop.id), ...parsed];
+      });
       setIcalStatus(s=>({...s,[prop.id]:"ok"}));
       setLastSyncTime(new Date());
     } catch(e) {
@@ -1537,7 +1610,7 @@ function App() {
       })()}
 
       <div style={C.sec}>
-        <div style={{...C.secH}} className="sec-reservas-header"><div style={C.secT}>Reservas activas</div><button className="fang-btn" style={C.btn()} onClick={()=>setShowRM(true)}>+ Reserva</button></div>
+        <div style={{...C.secH}} className="sec-reservas-header"><div style={C.secT}>Reservas activas</div>{canWrite()&&<button className="fang-btn" style={C.btn()} onClick={()=>setShowRM(true)}>+ Reserva</button>}</div>
         <div style={{maxHeight:520,overflowY:"auto"}}>
         {res.filter(r=>r.ci<=TODAY&&r.co>TODAY).length===0&&(
           <div style={{fontSize:13,color:T.textMut,padding:"18px 0",textAlign:"center"}}>Sin reservas activas hoy</div>
@@ -1926,7 +1999,16 @@ function App() {
     const dayTasks=calDay?tasks.filter(t=>t.date===calDay):[];
     const isCI=r=>r.ci===calDay, isCO=r=>r.co===calDay;
     const fmtAmt=r=>r.cur==="USD"?$$usd(r.amt):$$(r.amt);
-    const openResFromCal=()=>{setResF(f=>({...f,ci:calDay||"",co:""}));setShowRM(true);};
+    const openResFromCal=()=>{
+      const filteredPids=[...calFilterPids];
+      const targetPid=filteredPids.length===1?filteredPids[0]:(props_[0]?.id||"p1");
+      // Auto-calcular CO = CI + 1 día
+      const ci=calDay||"";
+      let co="";
+      if(ci){ const d=new Date(ci+"T00:00:00"); d.setDate(d.getDate()+1); co=d.toISOString().slice(0,10); }
+      setResF(f=>({...f,pid:targetPid,ci,co}));
+      setShowRM(true);
+    };
 
     // Build cells: month view usa calCells(), week view usa weekCells()
     const cells = calView==="month" ? calCells() : weekCells(calDate);
@@ -1940,7 +2022,7 @@ function App() {
     const visFirst=allCellDates[0], visLast=allCellDates[allCellDates.length-1];
 
     // Compute bar segments: use all visible cells including prev/next month
-    const visProps = calFilterPids.size===0 ? props_ : props_.filter(p=>calFilterPids.has(p.id));
+    const visProps = calFilterPids.size===0 ? allowedProps : allowedProps.filter(p=>calFilterPids.has(p.id));
 
     // Normaliza externalRes al mismo shape que res (ci/co/pid)
     // Soporta tanto {ci,co,pid} (interno) como {start,end,propertyId} (externo)
@@ -2010,9 +2092,9 @@ function App() {
                 </div>
                 <button onClick={()=>setCalDay(null)} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:T.textMut,lineHeight:1,marginTop:2}}>✕</button>
               </div>
-              <button onClick={openResFromCal} style={{...C.btn(),width:"100%",marginTop:14,padding:"10px",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+              {canWrite() && <button onClick={openResFromCal} style={{...C.btn(),width:"100%",marginTop:14,padding:"10px",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
                 <span style={{fontSize:15}}>+</span> Nueva reserva este día
-              </button>
+              </button>}
             </div>
             <div style={{padding:"18px 20px",flex:1}}>
               <div style={{marginBottom:20}}>
@@ -2054,9 +2136,9 @@ function App() {
                         <button onClick={()=>sendWhatsApp(r)} className="fang-btns" style={{...C.btns("d"),flex:"1 1 60px",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>💬 WA</button>
                         <button onClick={()=>setVoucherRes(r)} className="fang-btns" style={{...C.btns("d"),flex:"1 1 60px",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>🖨️ Reserva</button>
                         {(r.payments||[]).length>0&&<button onClick={()=>{setComprobantesRes(r);setCalDay(null);}} className="fang-btns" style={{...C.btns("d"),flex:"1 1 60px",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>📄 {(r.payments||[]).length} pago{(r.payments||[]).length!==1?"s":""}</button>}
-                        {getPaymentStatus(r).status!=="pagado"&&<button onClick={()=>{setPayTarget({r,suggestedAmount:getPaymentStatus(r).pending});setShowPayModal(true);setCalDay(null);}} className="fang-btns" style={{...C.btns("a"),flex:"1 1 60px",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>💳 Pago</button>}
-                        <button onClick={()=>openEditRes(r)} className="fang-btns" style={{...C.btns("d"),flex:"1 1 60px",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>✏️ Editar</button>
-                        <button onClick={()=>setDeleteResId(r.id)} className="fang-btns" style={{...C.btns("d"),flex:"1 1 60px",display:"flex",alignItems:"center",justifyContent:"center",gap:4,color:"#C84040"}}>🗑️ Eliminar</button>
+                        {canWrite()&&getPaymentStatus(r).status!=="pagado"&&<button onClick={()=>{setPayTarget({r,suggestedAmount:getPaymentStatus(r).pending});setShowPayModal(true);setCalDay(null);}} className="fang-btns" style={{...C.btns("a"),flex:"1 1 60px",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>💳 Pago</button>}
+                        {canWrite()&&<button onClick={()=>openEditRes(r)} className="fang-btns" style={{...C.btns("d"),flex:"1 1 60px",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>✏️ Editar</button>}
+                        {canWrite()&&<button onClick={()=>setDeleteResId(r.id)} className="fang-btns" style={{...C.btns("d"),flex:"1 1 60px",display:"flex",alignItems:"center",justifyContent:"center",gap:4,color:"#C84040"}}>🗑️ Eliminar</button>}
                       </div>
                     </div>
                   );
@@ -2094,7 +2176,7 @@ function App() {
                           <div style={{display:"flex",gap:6,marginTop:8,paddingTop:8,borderTop:`1px solid ${p.color}18`}}>
                             <button onClick={()=>setVoucherRes(r)} className="fang-btns" style={{...C.btns("d"),flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:4,fontSize:11}}>🖨️ Reserva</button>
                             {(r.payments||[]).length>0&&<button onClick={()=>setComprobantesRes(r)} className="fang-btns" style={{...C.btns("d"),flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:4,fontSize:11}}>📄 {(r.payments||[]).length} pago{(r.payments||[]).length!==1?"s":""}</button>}
-                            <button onClick={()=>openEditRes(r)} className="fang-btns" style={{...C.btns("d"),flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:4,fontSize:11}}>✏️ Editar</button>
+                            {canWrite()&&<button onClick={()=>openEditRes(r)} className="fang-btns" style={{...C.btns("d"),flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:4,fontSize:11}}>✏️ Editar</button>}
                           </div>
                         </div>
                       );
@@ -2387,19 +2469,19 @@ function App() {
             )}
           </div>
           <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:14}}>
-            {props_.map(p=>{
+            {allowedProps.map(p=>{
               const active=calFilterPids.size===0||calFilterPids.has(p.id);
               const toggle=()=>setCalFilterPids(prev=>{
                 const next=new Set(prev);
                 if(prev.size===0){
                   // Primera selección: activar todas menos esta
-                  props_.forEach(pp=>{ if(pp.id!==p.id) next.add(pp.id); });
+                  allowedProps.forEach(pp=>{ if(pp.id!==p.id) next.add(pp.id); });
                 } else if(next.has(p.id)){
                   next.delete(p.id);
                   if(next.size===0) return new Set(); // si quedan 0 → todas
                 } else {
                   next.add(p.id);
-                  if(next.size===props_.length) return new Set(); // todas activas → resetear
+                  if(next.size===allowedProps.length) return new Set(); // todas activas → resetear
                 }
                 return next;
               });
@@ -2544,7 +2626,7 @@ function App() {
     return (
       <div>
         <div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}>
-          <button className="fang-btn" style={C.btn("a")} onClick={()=>setShowTM(true)}>+ Tarea</button>
+          {canWrite() && <button className="fang-btn" style={C.btn("a")} onClick={()=>setShowTM(true)}>+ Tarea</button>}
         </div>
         <Sec title="Limpieza" icon="🧹" items={limpiezas}/>
         <Sec title="Mantenimiento" icon="🔧" items={mantos}/>
@@ -2709,13 +2791,13 @@ function App() {
     return (
       <div>
         <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
-          <button className="fang-btn" style={C.btn()} onClick={()=>setShowLM(true)}>+ Nuevo envío</button>
-          <button className="fang-btn" style={C.btn("o")} onClick={openNewLavadero}>+ Lavadero</button>
+          {canWrite() && <button className="fang-btn" style={C.btn()} onClick={()=>setShowLM(true)}>+ Nuevo envío</button>}
+          {canWrite() && <button className="fang-btn" style={C.btn("o")} onClick={openNewLavadero}>+ Lavadero</button>}
           <div style={{marginLeft:"auto",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
             <select style={{...C.sel,marginBottom:0,width:"auto"}} value={lavRepId} onChange={e=>setLavRepId(e.target.value)}>{lavaderos.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}</select>
             <select style={{...C.sel,marginBottom:0,width:"auto"}} value={lavRepPid} onChange={e=>setLavRepPid(e.target.value)}>
               <option value={"0"}>Todas las prop.</option>
-              {props_.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+              {allowedProps.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
             <MonthPicker value={lavRepMo} onChange={setLavRepMo} compact/>
             <button className="fang-btn" style={C.btn("a")} onClick={()=>setShowLavRep(true)}>Ver reporte →</button>
@@ -2820,9 +2902,9 @@ function App() {
                         <div style={{fontSize:11,color:T.textSub,marginTop:2,marginBottom:8}}>{prendas} prendas · {$$(total)}</div>
                         <button onClick={()=>setLavVoucher(l)} className="fang-btns" style={{...C.btns("d"),marginTop:0,width:"100%",fontSize:10,padding:"5px 8px",color:"#B5743E",fontWeight:700}}>🖨️ Ver remito</button>
                         <div style={{display:"flex",gap:5,marginTop:5}}>
-                          <button onClick={()=>openEditLaundry(l)} className="fang-btns" style={{...C.btns("d"),flex:1,fontSize:10,padding:"5px 6px"}}>✏️ Editar</button>
-                          <button onClick={()=>{ if(!canWrite()) return; if(window.confirm(`¿Devolver el envío de "${info.guest}" y eliminarlo del lavadero? Esta acción no se puede deshacer.`)){ setLaundry(ls=>ls.filter(x=>x.id!==l.id)); fbDel("laundry",l.id); } }} className="fang-btns" style={{...C.btns("d"),flex:1,fontSize:10,padding:"5px 6px",color:"#C84040"}}>← Devolver</button>
-                          <button onClick={()=>{ if(!canWrite()) return; const lu=_laundry.find(x=>x.id===l.id); if(lu) fbSet("laundry",l.id,{...lu,status:"completado"}); setLaundry(ls=>ls.map(x=>x.id===l.id?{...x,status:"completado"}:x)); }} className="fang-btns" style={{...C.btns("p"),flex:1,fontSize:10,padding:"5px 6px"}}>✓ Listo</button>
+                          {canWrite()&&<button onClick={()=>openEditLaundry(l)} className="fang-btns" style={{...C.btns("d"),flex:1,fontSize:10,padding:"5px 6px"}}>✏️ Editar</button>}
+                          {canWrite()&&<button onClick={()=>{ if(!canWrite()) return; if(window.confirm(`¿Devolver el envío de "${info.guest}" y eliminarlo del lavadero? Esta acción no se puede deshacer.`)){ setLaundry(ls=>ls.filter(x=>x.id!==l.id)); fbDel("laundry",l.id); } }} className="fang-btns" style={{...C.btns("d"),flex:1,fontSize:10,padding:"5px 6px",color:"#C84040"}}>← Devolver</button>}
+                          {canWrite()&&<button onClick={()=>{ if(!canWrite()) return; const lu=_laundry.find(x=>x.id===l.id); if(lu) fbSet("laundry",l.id,{...lu,status:"completado"}); setLaundry(ls=>ls.map(x=>x.id===l.id?{...x,status:"completado"}:x)); }} className="fang-btns" style={{...C.btns("p"),flex:1,fontSize:10,padding:"5px 6px"}}>✓ Listo</button>}
                         </div>
                       </div>
                     );
@@ -3415,7 +3497,7 @@ function App() {
             <div style={C.secT}>Reporte mensual para propietario</div>
             <div style={{marginTop:18,maxWidth:380}}>
               <label style={C.lbl}>Propiedad</label>
-              <select style={C.sel} value={rPid} onChange={e=>setRPid(e.target.value)}>{props_.map(p=><option key={p.id} value={p.id}>{p.name} ({ownerNames(p)})</option>)}</select>
+              <select style={C.sel} value={rPid} onChange={e=>setRPid(e.target.value)}>{allowedProps.map(p=><option key={p.id} value={p.id}>{p.name} ({ownerNames(p)})</option>)}</select>
               <label style={C.lbl}>Período</label>
               <MonthPicker value={rMonth} onChange={setRMonth}/>
               <button style={{...C.btn("a"),width:"100%",padding:"11px",marginTop:4}} onClick={()=>setShowRep(true)}>Ver reporte mensual →</button>
@@ -3428,7 +3510,7 @@ function App() {
             <div style={C.secT}>Reporte anual para propietario</div>
             <div style={{marginTop:18,maxWidth:380}}>
               <label style={C.lbl}>Propiedad</label>
-              <select style={C.sel} value={rPid} onChange={e=>setRPid(e.target.value)}>{props_.map(p=><option key={p.id} value={p.id}>{p.name} ({ownerNames(p)})</option>)}</select>
+              <select style={C.sel} value={rPid} onChange={e=>setRPid(e.target.value)}>{allowedProps.map(p=><option key={p.id} value={p.id}>{p.name} ({ownerNames(p)})</option>)}</select>
               <label style={C.lbl}>Año</label>
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,background:T.bgInput,border:`1.5px solid ${T.border}`,borderRadius:12,padding:"8px 14px"}}>
                 <button onClick={()=>setRAnio(a=>String(+a-1))} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:T.textSub,padding:"0 6px"}}>‹</button>
@@ -3449,7 +3531,7 @@ function App() {
             <label style={C.lbl}>Propiedad</label>
             <select style={C.sel} value={lavRepPid} onChange={e=>setLavRepPid(e.target.value)}>
               <option value={"0"}>Todas las propiedades</option>
-              {props_.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+              {allowedProps.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
             <label style={C.lbl}>Período</label>
             <MonthPicker value={lavRepMo} onChange={setLavRepMo} compact/>
@@ -3503,10 +3585,10 @@ function App() {
       <div>
         {/* Filtros */}
         <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",alignItems:"center"}} className="filtros-wrap">
-          <button className="fang-btn" style={C.btn()} onClick={()=>{setEditGastoId(null);setGastoF({pid:"p1",cat:"Limpieza",desc:"",amt:"",date:"",cobrado:false});setShowGastoM(true);}}>+ Gasto</button>
+          {canWrite() && <button className="fang-btn" style={C.btn()} onClick={()=>{setEditGastoId(null);setGastoF({pid:"p1",cat:"Limpieza",desc:"",amt:"",date:"",cobrado:false});setShowGastoM(true);}}>+ Gasto</button>}
           <select style={{...C.sel,marginBottom:0,width:"auto"}} value={filterPid} onChange={e=>setFilterPid(e.target.value)}>
             <option value={"0"}>Todas las propiedades</option>
-            {props_.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+            {allowedProps.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}} className="gastos-fecha-wrap">
             <span style={{fontSize:12,color:T.textSub,whiteSpace:"nowrap"}}>Desde</span>
@@ -3574,9 +3656,9 @@ function App() {
                   </div>
                   <div style={{fontSize:14,fontWeight:700,color:"#B5743E",flexShrink:0,marginLeft:8}}>{$$(g.amt)}</div>
                   <div style={{display:"flex",gap:5,marginLeft:8,flexShrink:0}} className="row-action-btns">
-                    <button title="Marcar como cobrado" onClick={()=>toggleCobrado(g.id)} className="fang-btns" style={{...C.btns("p"),fontSize:11,padding:"4px 8px"}}>✓</button>
-                    <button onClick={()=>openEditGasto(g)} className="fang-btns" style={{...C.btns("d"),fontSize:11,padding:"4px 8px"}}>✏️</button>
-                    <button onClick={()=>deleteGasto(g.id,g.desc||g.cat)} className="fang-btns" style={{...C.btns("d"),fontSize:11,padding:"4px 8px",color:"#C84040"}}>🗑️</button>
+                    {canWrite()&&<button title="Marcar como cobrado" onClick={()=>toggleCobrado(g.id)} className="fang-btns" style={{...C.btns("p"),fontSize:11,padding:"4px 8px"}}>✓</button>}
+                    {canWrite()&&<button onClick={()=>openEditGasto(g)} className="fang-btns" style={{...C.btns("d"),fontSize:11,padding:"4px 8px"}}>✏️</button>}
+                    {canWrite()&&<button onClick={()=>deleteGasto(g.id,g.desc||g.cat)} className="fang-btns" style={{...C.btns("d"),fontSize:11,padding:"4px 8px",color:"#C84040"}}>🗑️</button>}
                   </div>
                 </div>
               );
@@ -3609,8 +3691,8 @@ function App() {
                   </div>
                   <div style={{fontSize:14,fontWeight:700,color:g.cobrado?T.textMut:"#3B6E52",flexShrink:0,marginLeft:8}}>{$$(g.amt)}</div>
                   <div style={{display:"flex",gap:5,marginLeft:8,flexShrink:0}}>
-                    <button onClick={()=>openEditGasto(g)} className="fang-btns" style={{...C.btns("d"),fontSize:11,padding:"4px 8px"}}>✏️</button>
-                    <button onClick={()=>deleteGasto(g.id,g.desc||g.cat)} className="fang-btns" style={{...C.btns("d"),fontSize:11,padding:"4px 8px",color:"#C84040"}}>🗑️</button>
+                    {canWrite()&&<button onClick={()=>openEditGasto(g)} className="fang-btns" style={{...C.btns("d"),fontSize:11,padding:"4px 8px"}}>✏️</button>}
+                    {canWrite()&&<button onClick={()=>deleteGasto(g.id,g.desc||g.cat)} className="fang-btns" style={{...C.btns("d"),fontSize:11,padding:"4px 8px",color:"#C84040"}}>🗑️</button>}
                   </div>
                 </div>
               );
@@ -3766,7 +3848,7 @@ function App() {
 
     // Construir todos los reportes (pendientes + cobrados)
     const todosReportes = [];
-    props_.filter(p => filterPid==="0" || p.id===filterPid).forEach(p=>{
+    allowedProps.filter(p => filterPid==="0" || p.id===filterPid).forEach(p=>{
       reportesMeses.forEach(mes=>{
         const id=`${p.id}-${mes}`;
         // Mismo criterio que rep useMemo: solo ci del mes (evita doble conteo)
@@ -3846,7 +3928,7 @@ function App() {
         <div style={{display:"flex",gap:8,marginBottom:16,alignItems:"center"}}>
           <select style={{...C.sel,marginBottom:0,width:"auto"}} value={filterPid} onChange={e=>setFilterPid(e.target.value)}>
             <option value={"0"}>Todas las propiedades</option>
-            {props_.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+            {allowedProps.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
 
@@ -3935,7 +4017,7 @@ function App() {
             value={filterTxt} onChange={e=>setFilterTxt(e.target.value)}/>
           <select style={{...C.sel,marginBottom:0,width:"auto"}} value={filterPid} onChange={e=>setFilterPid(e.target.value)}>
             <option value={"0"}>Todas las propiedades</option>
-            {props_.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+            {allowedProps.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           <select style={{...C.sel,marginBottom:0,width:"auto"}} value={filterPlat} onChange={e=>setFilterPlat(e.target.value)}>
             <option value="">Todas las plataformas</option>
@@ -4522,7 +4604,7 @@ function App() {
                   <div>
                     <label style={C.lbl}>Propiedad</label>
                     <select style={{...C.sel,marginBottom:0}} value={propTab} onChange={e=>setPropTab(e.target.value)}>
-                      {props_.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                      {allowedProps.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
                   <div>
@@ -4954,12 +5036,21 @@ function App() {
     const [form,     setForm]     = useState({email:"",pass:"",name:"",role:"owner"});
     const [busy,     setBusy]     = useState(false);
     const [msg,      setMsg]      = useState({text:"",ok:true});
+    const [editPropIds,   setEditPropIds]   = useState({}); // {uid: Set<pid>}
+    const [editCanAddRes, setEditCanAddRes] = useState({}); // {uid: bool}
+    const [savingProps,   setSavingProps]   = useState({}); // {uid: bool}
 
     // Cargar usuarios desde Firestore
     useEffect(() => {
       if(!window._db) return;
       return window._db.collection("users").onSnapshot(snap => {
-        setUsers(snap.docs.map(d=>({id:d.id,...d.data()})));
+        const us = snap.docs.map(d=>({id:d.id,...d.data()}));
+        setUsers(us);
+        // Inicializar editPropIds y editCanAddRes con valores actuales
+        const initP = {}, initC = {};
+        us.forEach(u=>{ initP[u.id] = new Set(u.propIds||[]); initC[u.id] = u.canAddRes||false; });
+        setEditPropIds(initP);
+        setEditCanAddRes(initC);
         setLoading(false);
       });
     }, []);
@@ -4969,26 +5060,17 @@ function App() {
       if(form.pass.length < 6){ setMsg({text:"La contraseña debe tener al menos 6 caracteres.",ok:false}); return; }
       setBusy(true); setMsg({text:"",ok:true});
       try {
-        // Segunda instancia de Firebase para no perder la sesión actual
         let secondApp;
-        try {
-          secondApp = firebase.app("secondary");
-        } catch(e) {
-          secondApp = firebase.initializeApp(firebase.app().options, "secondary");
-        }
+        try { secondApp = firebase.app("secondary"); }
+        catch(e) { secondApp = firebase.initializeApp(firebase.app().options, "secondary"); }
         const secondAuth = secondApp.auth();
         const cred = await secondAuth.createUserWithEmailAndPassword(form.email, form.pass);
         const uid = cred.user.uid;
         await secondAuth.signOut();
-
-        // Guardar rol y nombre en Firestore
         await window._db.collection("users").doc(uid).set({
-          email: form.email,
-          name:  form.name,
-          role:  form.role,
-          createdAt: new Date().toISOString(),
+          email: form.email, name: form.name, role: form.role,
+          propIds: [], createdAt: new Date().toISOString(),
         });
-
         setMsg({text:"✅ Usuario creado correctamente.", ok:true});
         setForm({email:"",pass:"",name:"",role:"owner"});
       } catch(e) {
@@ -5005,6 +5087,23 @@ function App() {
     const deleteUser = async (uid, name) => {
       if(!window.confirm(`¿Eliminar usuario "${name}"? Solo se elimina de Firestore, no de Authentication.`)) return;
       await window._db.collection("users").doc(uid).delete();
+    };
+
+    const toggleProp = (uid, pid) => {
+      setEditPropIds(prev => {
+        const s = new Set(prev[uid]||[]);
+        s.has(pid) ? s.delete(pid) : s.add(pid);
+        return {...prev, [uid]: s};
+      });
+    };
+
+    const savePropIds = async (uid) => {
+      if(!window._db) return;
+      setSavingProps(p=>({...p,[uid]:true}));
+      const ids       = [...(editPropIds[uid]||new Set())];
+      const addResVal = editCanAddRes[uid] || false;
+      await window._db.collection("users").doc(uid).update({ propIds: ids, canAddRes: addResVal });
+      setSavingProps(p=>({...p,[uid]:false}));
     };
 
     return (
@@ -5042,23 +5141,70 @@ function App() {
           {loading ? <div style={{color:"var(--text-secondary)",fontSize:13}}>Cargando...</div> :
             users.length === 0 ? <div style={{color:"var(--text-secondary)",fontSize:13}}>No hay usuarios.</div> :
             users.map(u=>(
-              <div key={u.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",
-                padding:"10px 0",borderBottom:"1px solid var(--border-subtle)"}}>
-                <div>
-                  <div style={{fontWeight:600,fontSize:14,color:"var(--text-primary)"}}>{u.name||"Sin nombre"}</div>
-                  <div style={{fontSize:12,color:"var(--text-secondary)"}}>{u.email}</div>
+              <div key={u.id} style={{borderBottom:"1px solid var(--border-subtle)",paddingBottom:14,marginBottom:14}}>
+                {/* Cabecera del usuario */}
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                  <div>
+                    <div style={{fontWeight:600,fontSize:14,color:"var(--text-primary)"}}>{u.name||"Sin nombre"}</div>
+                    <div style={{fontSize:12,color:"var(--text-secondary)"}}>{u.email}</div>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:11,padding:"3px 10px",borderRadius:20,fontWeight:600,
+                      background:u.role==="admin"?"rgba(59,110,82,0.18)":"rgba(100,120,200,0.15)",
+                      color:u.role==="admin"?"var(--primary)":"#6478c8"}}>
+                      {u.role==="admin"?"👑 Admin":"🏠 Owner"}
+                    </span>
+                    {u.id !== CURRENT_USER.id &&
+                      <button onClick={()=>deleteUser(u.id, u.name||u.email)}
+                        style={{...C.btns("d"),fontSize:11,padding:"4px 8px"}}>✕</button>
+                    }
+                  </div>
                 </div>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <span style={{fontSize:11,padding:"3px 10px",borderRadius:20,fontWeight:600,
-                    background:u.role==="admin"?"rgba(59,110,82,0.18)":"rgba(100,120,200,0.15)",
-                    color:u.role==="admin"?"var(--primary)":"#6478c8"}}>
-                    {u.role==="admin"?"👑 Admin":"🏠 Owner"}
-                  </span>
-                  {u.id !== CURRENT_USER.id &&
-                    <button onClick={()=>deleteUser(u.id, u.name||u.email)}
-                      style={{...C.btns("d"),fontSize:11,padding:"4px 8px"}}>✕</button>
-                  }
-                </div>
+
+                {/* Asignación de propiedades — solo para owners */}
+                {u.role === "owner" && (
+                  <div style={{background:"var(--bg-subtle,rgba(0,0,0,0.03))",borderRadius:10,padding:"10px 12px"}}>
+                    <div style={{fontSize:12,fontWeight:600,color:"var(--text-secondary)",marginBottom:8}}>
+                      🏡 Propiedades con acceso
+                    </div>
+                    {props_.length === 0
+                      ? <div style={{fontSize:12,color:"var(--text-secondary)"}}>No hay propiedades creadas.</div>
+                      : <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
+                          {props_.map(p=>{
+                            const checked = (editPropIds[u.id]||new Set()).has(p.id);
+                            return (
+                              <label key={p.id} style={{display:"flex",alignItems:"center",gap:5,
+                                padding:"5px 10px",borderRadius:20,cursor:"pointer",fontSize:13,
+                                background: checked ? p.color+"22" : "var(--bg-card,#fff)",
+                                border: `1.5px solid ${checked ? p.color : "var(--border-subtle)"}`,
+                                color: checked ? p.color : "var(--text-secondary)",
+                                fontWeight: checked ? 700 : 400, transition:"all .15s"}}>
+                                <input type="checkbox" checked={checked}
+                                  onChange={()=>toggleProp(u.id, p.id)}
+                                  style={{accentColor:p.color,marginRight:2}}/>
+                                {p.name}
+                              </label>
+                            );
+                          })}
+                        </div>
+                    }
+                    {/* Toggle: puede agregar reservas */}
+                    <label style={{display:"flex",alignItems:"center",gap:8,margin:"10px 0",cursor:"pointer",userSelect:"none"}}>
+                      <div onClick={()=>setEditCanAddRes(prev=>({...prev,[u.id]:!prev[u.id]}))}
+                        style={{width:38,height:22,borderRadius:11,position:"relative",cursor:"pointer",flexShrink:0,
+                          background:editCanAddRes[u.id]?"#3B6E52":"var(--border-subtle,#ccc)",transition:"background .2s"}}>
+                        <div style={{position:"absolute",top:3,left:editCanAddRes[u.id]?18:3,width:16,height:16,
+                          borderRadius:"50%",background:"#fff",boxShadow:"0 1px 3px rgba(0,0,0,0.2)",transition:"left .2s"}}/>
+                      </div>
+                      <span style={{fontSize:13,color:"var(--text-primary)",fontWeight:600}}>Puede agregar reservas</span>
+                      <span style={{fontSize:11,color:"var(--text-secondary)"}}>(no editar ni eliminar)</span>
+                    </label>
+                    <button onClick={()=>savePropIds(u.id)} disabled={savingProps[u.id]}
+                      style={{...C.btns("p"),fontSize:12,padding:"5px 14px",opacity:savingProps[u.id]?.6:1}}>
+                      {savingProps[u.id]?"Guardando...":"💾 Guardar accesos"}
+                    </button>
+                  </div>
+                )}
               </div>
             ))
           }
@@ -5074,20 +5220,21 @@ function App() {
      VIEWS    → mapa sección → componente JSX
      TITLES   → títulos del header por sección
   ══════════════════════════════════════════════════════ */
-  const NAVS=[
-    {key:"dashboard",  icon:"🏠", label:"Inicio"},
-    {key:"calendario", icon:"📅", label:"Calendario"},
-    {key:"lavadero",   icon:"🫧", label:"Lavadero"},
-    {key:"tareas",     icon:"✅", label:"Tareas"},
-    {key:"cotizador",   icon:"🧮", label:"Cotizador"},
-    {key:"reportes",   icon:"📊", label:"Liquidaciones/reportes"},
-    {key:"cobros",     icon:"💰", label:"Cobros"},
-    {key:"pagos",      icon:"💳", label:"Pagos"},
-    {key:"gastos",     icon:"💸", label:"Gastos"},
-    {key:"propiedades",icon:"🏡", label:"Propiedades/Hab."},
-    {key:"historial",  icon:"📋", label:"Historial"},
-    ...(CURRENT_USER.role==="admin"?[{key:"usuarios", icon:"👥", label:"Usuarios"}]:[]),
+  const ALL_NAVS=[
+    {key:"dashboard",   icon:"🏠", label:"Inicio",                   adminOnly:true},
+    {key:"calendario",  icon:"📅", label:"Calendario"},
+    {key:"lavadero",    icon:"🫧", label:"Lavadero"},
+    {key:"tareas",      icon:"✅", label:"Tareas"},
+    {key:"cotizador",   icon:"🧮", label:"Cotizador",                 adminOnly:true},
+    {key:"reportes",    icon:"📊", label:"Liquidaciones/reportes"},
+    {key:"cobros",      icon:"💰", label:"Cobros",                    adminOnly:true},
+    {key:"pagos",       icon:"💳", label:"Pagos",                     adminOnly:true},
+    {key:"gastos",      icon:"💸", label:"Gastos"},
+    {key:"propiedades", icon:"🏡", label:"Propiedades/Hab.",          adminOnly:true},
+    {key:"historial",   icon:"📋", label:"Historial",                 adminOnly:true},
+    ...(CURRENT_USER.role==="admin"?[{key:"usuarios", icon:"👥", label:"Usuarios", adminOnly:true}]:[]),
   ];
+  const NAVS = isOwner ? ALL_NAVS.filter(n=>!n.adminOnly) : ALL_NAVS;
   const SUBTITLES={dashboard:`Hoy, ${fmtD(TODAY)} · Software de gestión de propiedades`,calendario:"Visualizá todas tus reservas de un vistazo",historial:"Buscá y filtrá todas las reservas",tareas:"Gestioná limpiezas y mantenimientos",lavadero:"Registrá envíos al lavadero por reserva",gastos:"Gastos por propiedad y control de cobros",pagos:"Pagos pendientes de limpiezas, mantenimientos y lavadero",cobros:"Cobros pendientes a propietarios",propiedades:"Propiedades, habitaciones y sus propietarios",reportes:"Generá reportes mensuales para cada propietario",cotizador:"Calculá tarifas, precios para portales y precio por noche",usuarios:"Creá y administrá usuarios de la aplicación"};
   const VIEWS={dashboard:<Dashboard/>,calendario:<Calendario/>,historial:<Historial/>,tareas:<Tareas/>,lavadero:<Lavadero/>,gastos:<Gastos/>,pagos:<Pagos/>,cobros:<Cobros/>,propiedades:<Propiedades/>,reportes:<Reportes/>,cotizador:<Cotizador/>,usuarios:<Usuarios/>};
   const TITLES={dashboard:"Panel principal",calendario:"Calendario",historial:"Historial de reservas",tareas:"Tareas",lavadero:"Lavadero",gastos:"Gastos",pagos:"Pagos pendientes",cobros:"Cobros pendientes",propiedades:"Propiedades/Habitaciones",reportes:"Liquidaciones/Reportes",cotizador:"Cotizador",usuarios:"Usuarios"};
@@ -5259,7 +5406,7 @@ function App() {
         <div style={{fontSize:12,color:T.textMut,marginBottom:16}}><span style={{color:"#C84040"}}>*</span> Campos obligatorios</div>
 
         <label style={C.lbl}>Propiedad {req}</label>
-        <select style={C.sel} value={resF.pid} onChange={e=>setResF(f=>({...f,pid:e.target.value}))}>{props_.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>
+        <select style={C.sel} value={resF.pid} onChange={e=>setResF(f=>({...f,pid:e.target.value}))}>{allowedProps.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>
 
         <label style={C.lbl}>Nombre del huésped {req}</label>
         <input id="rm-guest" style={C.inp} placeholder="Ej: Familia García" value={resF.guest} onChange={e=>setResF(f=>({...f,guest:e.target.value}))}/>
@@ -5294,7 +5441,7 @@ function App() {
 
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <div><label style={C.lbl}>Check-in {req}</label><input id="rm-ci" type="date" style={{...C.inp,borderColor:resF.ci&&resF.co&&resF.ci>=resF.co?"#C84040":T.border}} value={resF.ci} onChange={e=>{const ci=e.target.value;setResF(f=>{const co=(!f.co||f.co<=ci)?(()=>{const d=new Date(ci+"T00:00:00");d.setDate(d.getDate()+1);return d.toISOString().slice(0,10);})():f.co;return{...f,ci,co};});}}/></div>
-          <div><label style={C.lbl}>Check-out {req}</label><input id="rm-co" type="date" style={{...C.inp,borderColor:resF.ci&&resF.co&&resF.ci>=resF.co?"#C84040":T.border}} value={resF.co} onChange={e=>setResF(f=>({...f,co:e.target.value}))}/></div>
+          <div><label style={C.lbl}>Check-out {req}</label><input id="rm-co" type="date" min={resF.ci?(()=>{const d=new Date(resF.ci+"T00:00:00");d.setDate(d.getDate()+1);return d.toISOString().slice(0,10);})():""} style={{...C.inp,borderColor:resF.ci&&resF.co&&resF.ci>=resF.co?"#C84040":T.border}} value={resF.co} onChange={e=>setResF(f=>({...f,co:e.target.value}))}/></div>
         </div>
         {resF.ci&&resF.co&&resF.ci>=resF.co&&<div style={{fontSize:12,color:"#C84040",marginTop:-10,marginBottom:14}}>⚠️ El check-out debe ser posterior al check-in</div>}
 
@@ -5374,9 +5521,9 @@ function App() {
         {isAgenda
           ? <select style={C.sel} value={taskF.pid} onChange={e=>setTaskF(f=>({...f,pid:e.target.value}))}>
               <option value="0">— Sin propiedad específica —</option>
-              {props_.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+              {allowedProps.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
-          : <select style={C.sel} value={taskF.pid} onChange={e=>setTaskF(f=>({...f,pid:e.target.value}))}>{props_.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>
+          : <select style={C.sel} value={taskF.pid} onChange={e=>setTaskF(f=>({...f,pid:e.target.value}))}>{allowedProps.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>
         }
 
         <label style={C.lbl}>Descripción</label>
@@ -5613,7 +5760,7 @@ function App() {
           <div style={{marginBottom:14}}>
             <label style={C.lbl}>Propiedad</label>
             <select style={C.sel} value={lavF.pidManual} onChange={e=>setLavF(f=>({...f,pidManual:e.target.value}))}>
-              {props_.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+              {allowedProps.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
             <label style={C.lbl}>Referencia <span style={{fontWeight:400,color:T.textMut}}>(opcional)</span></label>
             <input style={C.inp} placeholder="Ej: Recambio mid-stay García, Blancos extra..." value={lavF.guestManual} onChange={e=>setLavF(f=>({...f,guestManual:e.target.value}))}/>
@@ -5717,7 +5864,7 @@ function App() {
           <label style={C.lbl}>Propiedad (opcional)</label>
           <select style={C.sel} value={pagoF.pid} onChange={e=>setPagoF(f=>({...f,pid:e.target.value}))}>
             <option value="0">— Sin propiedad específica —</option>
-            {props_.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+            {allowedProps.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
             <div>
@@ -5835,7 +5982,7 @@ function App() {
           <div style={{fontSize:12,color:T.textMut,marginBottom:16}}><span style={{color:"#C84040"}}>*</span> Campos obligatorios</div>
           <label style={C.lbl}>Propiedad {req}</label>
           <select style={C.sel} value={gastoF.pid} onChange={e=>setGastoF(f=>({...f,pid:e.target.value}))}>
-            {props_.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+            {allowedProps.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           <label style={C.lbl}>Categoría {req}</label>
           <select style={C.sel} value={gastoF.cat} onChange={e=>setGastoF(f=>({...f,cat:e.target.value}))}>
@@ -6659,7 +6806,7 @@ function App() {
               <div style={{fontFamily:"'Cinzel',serif",fontSize:19,fontWeight:700,marginBottom:4}}>Editar reserva</div>
               <div style={{fontSize:12,color:T.textMut,marginBottom:16}}><span style={{color:"#C84040"}}>*</span> Campos obligatorios</div>
               <label style={C.lbl}>Propiedad {req}</label>
-              <select style={C.sel} value={resF.pid} onChange={e=>setResF(f=>({...f,pid:e.target.value}))}>{props_.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>
+              <select style={C.sel} value={resF.pid} onChange={e=>setResF(f=>({...f,pid:e.target.value}))}>{allowedProps.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>
               <label style={C.lbl}>Nombre del huésped {req}</label>
               <input style={C.inp} value={resF.guest} onChange={e=>setResF(f=>({...f,guest:e.target.value}))}/>
               <label style={C.lbl}>📱 Teléfono del huésped {req}</label>
@@ -6686,7 +6833,7 @@ function App() {
               <select style={C.sel} value={resF.plat} onChange={e=>setResF(f=>({...f,plat:e.target.value}))}>{["Airbnb","Booking","Directo"].map(p=><option key={p}>{p}</option>)}</select>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                 <div><label style={C.lbl}>Check-in {req}</label><input type="date" style={{...C.inp,borderColor:resF.ci&&resF.co&&resF.ci>=resF.co?"#C84040":T.border}} value={resF.ci} onChange={e=>{const ci=e.target.value;setResF(f=>{const co=(!f.co||f.co<=ci)?(()=>{const d=new Date(ci+"T00:00:00");d.setDate(d.getDate()+1);return d.toISOString().slice(0,10);})():f.co;return{...f,ci,co};});}}/></div>
-                <div><label style={C.lbl}>Check-out {req}</label><input type="date" style={{...C.inp,borderColor:resF.ci&&resF.co&&resF.ci>=resF.co?"#C84040":T.border}} value={resF.co} onChange={e=>setResF(f=>({...f,co:e.target.value}))}/></div>
+                <div><label style={C.lbl}>Check-out {req}</label><input type="date" min={resF.ci?(()=>{const d=new Date(resF.ci+"T00:00:00");d.setDate(d.getDate()+1);return d.toISOString().slice(0,10);})():""} style={{...C.inp,borderColor:resF.ci&&resF.co&&resF.ci>=resF.co?"#C84040":T.border}} value={resF.co} onChange={e=>setResF(f=>({...f,co:e.target.value}))}/></div>
               </div>
               {resF.ci&&resF.co&&resF.ci>=resF.co&&<div style={{fontSize:12,color:"#C84040",marginTop:-10,marginBottom:14}}>⚠️ El check-out debe ser posterior al check-in</div>}
               <label style={C.lbl}>Moneda {req}</label>
@@ -7038,7 +7185,8 @@ function App() {
                 const snap = await window._db.collection("users").doc(user.uid).get();
                 if(snap.exists) {
                   role = snap.data().role || "owner";
-                  CURRENT_USER.propIds = snap.data().propIds || [];
+                  CURRENT_USER.propIds   = snap.data().propIds   || [];
+                  CURRENT_USER.canAddRes = snap.data().canAddRes || false;
                 } else {
                   // Primera vez: crear doc de usuario con rol owner por defecto
                   await window._db.collection("users").doc(user.uid).set({
@@ -7096,7 +7244,41 @@ function App() {
       if(authed) return (
         <div style={{position:"relative"}}>
           {children}
-          {/* Botón de cerrar sesión — esquina superior derecha en desktop */}
+
+          {/* Banner propietario — solo lectura o puede agregar reservas */}
+          {CURRENT_USER.role === "owner" && (
+            <div style={{
+              position:"fixed", top:0, left:0, right:0, zIndex:9998,
+              background: CURRENT_USER.canAddRes
+                ? "linear-gradient(90deg,#3B6E52,#6478c8)"
+                : "linear-gradient(90deg,#6478c8,#8060b0)",
+              color:"#fff", fontSize:12, textAlign:"center", padding:"5px 0",
+              letterSpacing:0.5, fontWeight:600,
+            }}>
+              {CURRENT_USER.canAddRes
+                ? "🏠 Propietario — puede agregar reservas · " + CURRENT_USER.email
+                : "👁️ Modo propietario — solo lectura · " + CURRENT_USER.email}
+            </div>
+          )}
+
+          {/* Botón activar notificaciones del navegador */}
+          {typeof Notification !== "undefined" && Notification.permission !== "granted" && (
+            <button
+              onClick={async () => {
+                const perm = await Notification.requestPermission();
+                if(perm === "granted") sendBrowserNotif("✅ Notificaciones activadas", "FANG te avisará cuando haya nuevas reservas.");
+              }}
+              title="Activar notificaciones del navegador"
+              style={{
+                position:"fixed", bottom:110, right:12, zIndex:9999,
+                background:"rgba(59,110,82,0.85)", border:"1px solid rgba(255,255,255,0.2)",
+                borderRadius:20, color:"#fff", fontSize:11,
+                padding:"5px 10px", cursor:"pointer", backdropFilter:"blur(4px)",
+              }}
+            >🔔 Activar notificaciones</button>
+          )}
+
+          {/* Botón cerrar sesión */}
           <button
             onClick={handleLogout}
             title={"Cerrar sesión · " + CURRENT_USER.email}
