@@ -3,21 +3,21 @@ import 'firebase/compat/firestore';
 import 'firebase/compat/auth';
 
 const firebaseConfig = {
-  apiKey:            "AIzaSyCl0sGzLlRFB__vU5HUdy4trsRBoHWFJwU",
-  authDomain:        "fangpmshagrids.firebaseapp.com",
-  projectId:         "fangpmshagrids",
-  storageBucket:     "fangpmshagrids.firebasestorage.app",
-  messagingSenderId: "244923261273",
-  appId:             "1:244923261273:web:2e4e13f70b3c8b98daac48",
+  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 if (!firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
 
-export const db       = firebase.firestore();
-export const auth     = firebase.auth();
-export const fbReady  = true;
+export const db      = firebase.firestore();
+export const auth    = firebase.auth();
+export const fbReady = true;
 export { firebase };
 
 // Compatibilidad con el código existente que usa window._db etc.
