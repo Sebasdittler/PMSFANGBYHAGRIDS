@@ -24,3 +24,4 @@ export { firebase };
 window._db      = db;
 window._auth    = auth;
 window._fbReady = fbReady;
+window.firebase = firebase;
