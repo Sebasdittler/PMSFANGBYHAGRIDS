@@ -1243,7 +1243,7 @@ function App() {
   };
   const C = {
     app:   {fontFamily:"'Open Sans',sans-serif",background:"var(--bg-main)",minHeight:"100vh",display:"flex",color:"var(--text-main)",transition:"background .25s,color .25s",lineHeight:1.5},
-    side:  {width:sidebarCollapsed?64:220,background:"var(--sidebar-bg)",color:"var(--sidebar-act-text)",display:"flex",flexDirection:"column",position:"sticky",top:0,height:"100vh",boxShadow:"4px 0 24px rgba(0,0,0,0.35), inset -1px 0 0 rgba(255,255,255,0.04)",transition:"width .25s cubic-bezier(.4,0,.2,1)",overflow:"hidden"},
+    side:  {width:sidebarCollapsed?64:240,background:"var(--sidebar-bg)",color:"var(--sidebar-act-text)",display:"flex",flexDirection:"column",position:"sticky",top:0,height:"100vh",boxShadow:"4px 0 24px rgba(0,0,0,0.35), inset -1px 0 0 rgba(255,255,255,0.04)",transition:"width .25s cubic-bezier(.4,0,.2,1)",overflowX:"hidden",overflowY:"auto"},
     logo:  {padding:sidebarCollapsed?"20px 0":"28px 20px 24px",borderBottom:"1px solid var(--sidebar-border)",background:"rgba(255,255,255,0.03)",textAlign:"center",transition:"padding .25s"},
     logoT: {fontFamily:"'Cinzel',serif",fontSize:20,fontWeight:700,color:"#fff",letterSpacing:3,textTransform:"uppercase",textShadow:"0 0 24px rgba(142,197,133,0.4)"},
     logoS: {fontSize:9,color:"rgba(255,255,255,0.28)",textTransform:"uppercase",letterSpacing:4,marginTop:5,fontWeight:400},
@@ -6329,7 +6329,7 @@ function App() {
                 style={C.nb(view===n.key)}
                 onClick={()=>setView(n.key)}>
                 <span style={{fontSize:16,width:20,textAlign:"center",flexShrink:0,lineHeight:1}}>{n.icon}</span>
-                {!sidebarCollapsed&&<span style={{flex:1,whiteSpace:"nowrap",overflow:"hidden",opacity:1,transition:"opacity .2s"}}>{n.label}</span>}
+                {!sidebarCollapsed&&<span style={{flex:1,whiteSpace:"normal",overflow:"visible",opacity:1,transition:"opacity .2s",lineHeight:1.2}}>{n.label}</span>}
               </button>
             ))}
           </nav>
