@@ -1,0 +1,162 @@
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Open Sans', sans-serif; }
+    #root { min-height: 100vh; }
+
+    /* ════════════════════════════════════════════════
+       SISTEMA DE TEMAS — CSS VARIABLES GLOBALES
+       7 temas disponibles — todos en tonos pasteles
+    ════════════════════════════════════════════════ */
+
+    /* TEMA 1: soft-olive (verde sage pastel) */
+    :root, body.soft-olive {
+      --bg-main:          #f4f6f2;
+      --bg-surface:       #fafbf9;
+      --bg-elevated:      #eaefe6;
+      --primary:          #7a9b6c;
+      --primary-soft:     #dde8d7;
+      --accent:           #c5b8a8;
+      --text-main:        #2a2f28;
+      --text-muted:       #697566;
+      --border-color:     #d8e0d2;
+      --danger:           #c05050;
+      --sidebar-bg:       linear-gradient(175deg,#1a2e18 0%,#253e22 40%,#1a2e18 100%);
+      --sidebar-text:     rgba(210,230,200,0.55);
+      --sidebar-act-text: #d4eecc;
+      --sidebar-act-bg:   rgba(130,185,115,0.20);
+      --sidebar-border:   rgba(255,255,255,0.07);
+      --bnav-bg:          linear-gradient(0deg,#1a2e18 0%,#253e22 100%);
+    }
+
+    /* TEMA 2: pastel-purple (lavanda suave) */
+    body.pastel-purple {
+      --bg-main:          #f3f2fb;
+      --bg-surface:       #fafaff;
+      --bg-elevated:      #eae8f8;
+      --primary:          #9b85e8;
+      --primary-soft:     #e4dffa;
+      --accent:           #e8b4c0;
+      --text-main:        #282540;
+      --text-muted:       #6e6a88;
+      --border-color:     #dbd8f2;
+      --danger:           #d05060;
+      --sidebar-bg:       linear-gradient(175deg,#1e1640 0%,#2d2260 40%,#1e1640 100%);
+      --sidebar-text:     rgba(210,200,255,0.55);
+      --sidebar-act-text: #e0d8ff;
+      --sidebar-act-bg:   rgba(155,133,232,0.22);
+      --sidebar-border:   rgba(180,160,255,0.12);
+      --bnav-bg:          linear-gradient(0deg,#1e1640 0%,#2d2260 100%);
+    }
+
+    /* TEMA 3: warm-sand (arena tostada) */
+    body.warm-sand {
+      --bg-main:          #f7f3ed;
+      --bg-surface:       #fdf9f4;
+      --bg-elevated:      #f0e6da;
+      --primary:          #c89a6a;
+      --primary-soft:     #f0e0cc;
+      --accent:           #d8bc94;
+      --text-main:        #362820;
+      --text-muted:       #7a6858;
+      --border-color:     #e0d0be;
+      --danger:           #c05050;
+      --sidebar-bg:       linear-gradient(175deg,#241610 0%,#382218 40%,#241610 100%);
+      --sidebar-text:     rgba(235,210,180,0.55);
+      --sidebar-act-text: #f0dfc0;
+      --sidebar-act-bg:   rgba(200,154,106,0.22);
+      --sidebar-border:   rgba(200,160,110,0.14);
+      --bnav-bg:          linear-gradient(0deg,#241610 0%,#382218 100%);
+    }
+
+    /* TEMA 4: dark-soft (carbón elegante) */
+    body.dark-soft {
+      --bg-main:          #222226;
+      --bg-surface:       #2c2c32;
+      --bg-elevated:      #36363e;
+      --primary:          #9fb08c;
+      --primary-soft:     #3a4d3c;
+      --accent:           #c8a07a;
+      --text-main:        #eeeef2;
+      --text-muted:       #9898a8;
+      --border-color:     #3e3e48;
+      --danger:           #e07878;
+      --sidebar-bg:       linear-gradient(175deg,#141418 0%,#1c1c22 40%,#141418 100%);
+      --sidebar-text:     rgba(200,200,215,0.50);
+      --sidebar-act-text: #cce0c0;
+      --sidebar-act-bg:   rgba(159,176,140,0.20);
+      --sidebar-border:   rgba(255,255,255,0.06);
+      --bnav-bg:          linear-gradient(0deg,#141418 0%,#1c1c22 100%);
+    }
+
+    /* TEMA 5: pastel-gray (pizarra suave) */
+    body.pastel-gray {
+      --bg-main:          #f0f1f4;
+      --bg-surface:       #f8f9fb;
+      --bg-elevated:      #e4e6ec;
+      --primary:          #7a86a0;
+      --primary-soft:     #d8dcec;
+      --accent:           #b0b8cc;
+      --text-main:        #252830;
+      --text-muted:       #626880;
+      --border-color:     #d0d4e0;
+      --danger:           #c05055;
+      --sidebar-bg:       linear-gradient(175deg,#1c2030 0%,#282e42 40%,#1c2030 100%);
+      --sidebar-text:     rgba(200,210,230,0.55);
+      --sidebar-act-text: #d8e4f8;
+      --sidebar-act-bg:   rgba(122,134,160,0.22);
+      --sidebar-border:   rgba(160,175,210,0.12);
+      --bnav-bg:          linear-gradient(0deg,#1c2030 0%,#282e42 100%);
+    }
+
+    /* TEMA 6: pastel-blue (cielo calmo) */
+    body.pastel-blue {
+      --bg-main:          #eff4fb;
+      --bg-surface:       #f7faff;
+      --bg-elevated:      #e0eaf8;
+      --primary:          #5b8fd4;
+      --primary-soft:     #d4e4f8;
+      --accent:           #98c4e8;
+      --text-main:        #1e2a40;
+      --text-muted:       #5a6e8a;
+      --border-color:     #c8d8ee;
+      --danger:           #c05060;
+      --sidebar-bg:       linear-gradient(175deg,#142038 0%,#1e2e50 40%,#142038 100%);
+      --sidebar-text:     rgba(190,215,248,0.55);
+      --sidebar-act-text: #cce0ff;
+      --sidebar-act-bg:   rgba(91,143,212,0.22);
+      --sidebar-border:   rgba(140,190,240,0.14);
+      --bnav-bg:          linear-gradient(0deg,#142038 0%,#1e2e50 100%);
+    }
+
+    /* TEMA 7: pastel-rose (rosa empolvado) */
+    body.pastel-rose {
+      --bg-main:          #faf2f4;
+      --bg-surface:       #fff8f9;
+      --bg-elevated:      #f5e4e8;
+      --primary:          #c47a90;
+      --primary-soft:     #f5d8e0;
+      --accent:           #e0a8b8;
+      --text-main:        #3a2028;
+      --text-muted:       #806070;
+      --border-color:     #e8ccd4;
+      --danger:           #c04040;
+      --sidebar-bg:       linear-gradient(175deg,#2e1420 0%,#421c2c 40%,#2e1420 100%);
+      --sidebar-text:     rgba(240,200,215,0.55);
+      --sidebar-act-text: #ffd8e8;
+      --sidebar-act-bg:   rgba(196,122,144,0.22);
+      --sidebar-border:   rgba(220,160,180,0.14);
+      --bnav-bg:          linear-gradient(0deg,#2e1420 0%,#421c2c 100%);
+    }
+
+    /* Tablas de reportes: scroll horizontal en mobile */
+    #report-mensual-content .rep-s,
+    #report-anual-content   .rep-s  { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    #report-mensual-content table,
+    #report-anual-content   table   { min-width: 420px; }
+
+    /* Transición global suave al cambiar de tema */
+    body {
+      background: var(--bg-main);
+      color: var(--text-main);
+      transition: background 0.25s ease, color 0.25s ease;
+    }
+    #root { background: var(--bg-main); transition: background 0.25s ease; }
