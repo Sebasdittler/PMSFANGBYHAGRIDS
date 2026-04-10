@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { notificarNuevaReserva } from './notificaciones';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
@@ -999,6 +1000,8 @@ function App() {
               amt:+(resF.amt)||0,cur:resF.cur,senia:+(resF.senia)||0,seniaDate:resF.seniaDate||"",pax:+(resF.pax)||0,bebes:+(resF.bebes)||0,nota:resF.nota||"",comision:+(resF.comision)||0,comisionMode:resF.comisionMode||"porcentaje",precioOwner:+(resF.precioOwner)||0};
     const newTasks = makeResTasks(nr, resF.taskPre, resF.taskPost);
     await saveReserva(nr);
+    const propNombre = props_.find(p => p.id === nr.pid)?.name || nr.pid;
+    notificarNuevaReserva(nr, propNombre, CURRENT_USER.email);
     setTasks(t=>[...t,...newTasks]);
     newTasks.forEach(t => fbSet("tasks", t.id, t));
     setShowRM(false); setResF({pid:"p1",guest:"",tel:"",plat:"Airbnb",ci:"",co:"",amt:"",cur:"ARS",senia:"",seniaDate:"",pax:"",bebes:"",nota:"",comision:comisionPct,comisionMode:"porcentaje",precioOwner:"",taskPre:false,taskPost:true});
