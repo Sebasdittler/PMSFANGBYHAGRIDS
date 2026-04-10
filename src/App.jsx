@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { notificarNuevaReserva } from './notificaciones';
+import { notificarNuevaReserva, notificarReservaModificada, notificarReservaEliminada } from './notificaciones';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
@@ -1031,6 +1031,8 @@ function App() {
       pax:+(resF.pax)||0, bebes:+(resF.bebes)||0, nota:resF.nota||"", comision:+(resF.comision)||0,
       comisionMode:resF.comisionMode||"porcentaje", precioOwner:+(resF.precioOwner)||0};
     await updateReserva(updated);
+    const propNombreEdit = props_.find(p => p.id === updated.pid)?.name || updated.pid;
+    notificarReservaModificada(updated, propNombreEdit, CURRENT_USER.email);
 
     // Detectar qué tareas automáticas ya existen para esta reserva
     const hasPreTask  = tasks.some(t=>t.rid===editResId&&t.type==="limpieza_pre");
@@ -1063,7 +1065,12 @@ function App() {
     setEditResId(null); setResF({pid:"p1",guest:"",plat:"Airbnb",ci:"",co:"",amt:"",cur:"ARS",senia:"",seniaDate:"",pax:"",bebes:"",nota:"",comision:comisionPct,comisionMode:"porcentaje",precioOwner:"",taskPre:false,taskPost:true});
   };
   const confirmDeleteRes = async () => {
+    const resAEliminar = res.find(r => r.id === deleteResId);
     await deleteReserva(deleteResId);
+    if (resAEliminar) {
+      const propNombreDel = props_.find(p => p.id === resAEliminar.pid)?.name || resAEliminar.pid;
+      notificarReservaEliminada(resAEliminar, propNombreDel, CURRENT_USER.email);
+    }
     _tasks.filter(t=>t.rid===deleteResId).forEach(t=>fbDel("tasks",t.id));
     _laundry.filter(l=>l.rid===deleteResId).forEach(l=>fbDel("laundry",l.id));
     setTasks(ts=>ts.filter(t=>t.rid!==deleteResId));

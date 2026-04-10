@@ -17,13 +17,13 @@ function calcNoches(ci, co) {
   return isNaN(diff) ? '—' : `${diff} noche${diff !== 1 ? 's' : ''}`;
 }
 
-export async function notificarNuevaReserva(reserva, propiedadNombre, usuarioEmail) {
-  try {
-    const cur = reserva.cur === 'USD' ? 'USD' : 'ARS';
-    const monto = reserva.amt
-      ? `${cur} ${(+reserva.amt).toLocaleString('es-AR')}`
-      : '—';
+function fmtMonto(reserva) {
+  const cur = reserva.cur === 'USD' ? 'USD' : 'ARS';
+  return reserva.amt ? `${cur} ${(+reserva.amt).toLocaleString('es-AR')}` : '—';
+}
 
+async function enviarNotificacion(tipo, reserva, propiedadNombre, usuarioEmail) {
+  try {
     const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -32,23 +32,35 @@ export async function notificarNuevaReserva(reserva, propiedadNombre, usuarioEma
         template_id: EMAILJS_TEMPLATE_ID,
         user_id: EMAILJS_PUBLIC_KEY,
         template_params: {
-          propiedad:     propiedadNombre || '—',
-          huesped:       reserva.guest   || '—',
+          tipo:          tipo,
+          propiedad:     propiedadNombre       || '—',
+          huesped:       reserva.guest         || '—',
           fecha_entrada: fmtFecha(reserva.ci),
           fecha_salida:  fmtFecha(reserva.co),
           noches:        calcNoches(reserva.ci, reserva.co),
-          monto:         monto,
-          usuario:       usuarioEmail    || 'Sistema',
+          monto:         fmtMonto(reserva),
+          usuario:       usuarioEmail          || 'Sistema',
         }
       })
     });
-
     if (response.ok) {
-      console.log('✅ Notificación enviada');
+      console.log(`✅ Notificación enviada: ${tipo}`);
     } else {
       console.warn('⚠️ Error al enviar notificación:', response.status);
     }
   } catch (error) {
     console.error('❌ Error EmailJS:', error);
   }
+}
+
+export function notificarNuevaReserva(reserva, propiedadNombre, usuarioEmail) {
+  return enviarNotificacion('🏠 Nueva reserva', reserva, propiedadNombre, usuarioEmail);
+}
+
+export function notificarReservaModificada(reserva, propiedadNombre, usuarioEmail) {
+  return enviarNotificacion('✏️ Reserva modificada', reserva, propiedadNombre, usuarioEmail);
+}
+
+export function notificarReservaEliminada(reserva, propiedadNombre, usuarioEmail) {
+  return enviarNotificacion('🗑️ Reserva eliminada', reserva, propiedadNombre, usuarioEmail);
 }
