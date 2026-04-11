@@ -1,6 +1,7 @@
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/firestore';
 import 'firebase/compat/auth';
+import 'firebase/compat/storage';
 
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
@@ -17,11 +18,13 @@ if (!firebase.apps.length) {
 
 export const db      = firebase.firestore();
 export const auth    = firebase.auth();
+export const storage = firebase.storage();
 export const fbReady = true;
 export { firebase };
 
 // Compatibilidad con el código existente que usa window._db etc.
 window._db      = db;
 window._auth    = auth;
+window._storage = storage;
 window._fbReady = fbReady;
 window.firebase = firebase;

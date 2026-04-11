@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { notificarNuevaReserva, notificarReservaModificada, notificarReservaEliminada } from './notificaciones';
+import SitioWeb from './SitioWeb';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
@@ -5242,12 +5243,12 @@ function App() {
     {key:"gastos",      icon:"💸", label:"Gastos"},
     {key:"propiedades", icon:"🏡", label:"Propiedades/Hab.",          adminOnly:true},
     {key:"historial",   icon:"📋", label:"Historial",                 adminOnly:true},
-    ...(CURRENT_USER.role==="admin"?[{key:"usuarios", icon:"👥", label:"Usuarios", adminOnly:true}]:[]),
+    ...(CURRENT_USER.role==="admin"?[{key:"usuarios", icon:"👥", label:"Usuarios", adminOnly:true},{key:"sitioWeb", icon:"🌐", label:"Sitio Web", adminOnly:true}]:[]),
   ];
   const NAVS = isOwner ? ALL_NAVS.filter(n=>!n.adminOnly) : ALL_NAVS;
-  const SUBTITLES={dashboard:`Hoy, ${fmtD(TODAY)} · Software de gestión de propiedades`,calendario:"Visualizá todas tus reservas de un vistazo",historial:"Buscá y filtrá todas las reservas",tareas:"Gestioná limpiezas y mantenimientos",lavadero:"Registrá envíos al lavadero por reserva",gastos:"Gastos por propiedad y control de cobros",pagos:"Pagos pendientes de limpiezas, mantenimientos y lavadero",cobros:"Cobros pendientes a propietarios",propiedades:"Propiedades, habitaciones y sus propietarios",reportes:"Generá reportes mensuales para cada propietario",cotizador:"Calculá tarifas, precios para portales y precio por noche",usuarios:"Creá y administrá usuarios de la aplicación"};
-  const VIEWS={dashboard:<Dashboard/>,calendario:<Calendario/>,historial:<Historial/>,tareas:<Tareas/>,lavadero:<Lavadero/>,gastos:<Gastos/>,pagos:<Pagos/>,cobros:<Cobros/>,propiedades:<Propiedades/>,reportes:<Reportes/>,cotizador:<Cotizador/>,usuarios:<Usuarios/>};
-  const TITLES={dashboard:"Panel principal",calendario:"Calendario",historial:"Historial de reservas",tareas:"Tareas",lavadero:"Lavadero",gastos:"Gastos",pagos:"Pagos pendientes",cobros:"Cobros pendientes",propiedades:"Propiedades/Habitaciones",reportes:"Liquidaciones/Reportes",cotizador:"Cotizador",usuarios:"Usuarios"};
+  const SUBTITLES={dashboard:`Hoy, ${fmtD(TODAY)} · Software de gestión de propiedades`,calendario:"Visualizá todas tus reservas de un vistazo",historial:"Buscá y filtrá todas las reservas",tareas:"Gestioná limpiezas y mantenimientos",lavadero:"Registrá envíos al lavadero por reserva",gastos:"Gastos por propiedad y control de cobros",pagos:"Pagos pendientes de limpiezas, mantenimientos y lavadero",cobros:"Cobros pendientes a propietarios",propiedades:"Propiedades, habitaciones y sus propietarios",reportes:"Generá reportes mensuales para cada propietario",cotizador:"Calculá tarifas, precios para portales y precio por noche",usuarios:"Creá y administrá usuarios de la aplicación",sitioWeb:"Propiedades visibles en la web pública"};
+  const VIEWS={dashboard:<Dashboard/>,calendario:<Calendario/>,historial:<Historial/>,tareas:<Tareas/>,lavadero:<Lavadero/>,gastos:<Gastos/>,pagos:<Pagos/>,cobros:<Cobros/>,propiedades:<Propiedades/>,reportes:<Reportes/>,cotizador:<Cotizador/>,usuarios:<Usuarios/>,sitioWeb:<SitioWeb/>};
+  const TITLES={dashboard:"Panel principal",calendario:"Calendario",historial:"Historial de reservas",tareas:"Tareas",lavadero:"Lavadero",gastos:"Gastos",pagos:"Pagos pendientes",cobros:"Cobros pendientes",propiedades:"Propiedades/Habitaciones",reportes:"Liquidaciones/Reportes",cotizador:"Cotizador",usuarios:"Usuarios",sitioWeb:"Sitio Web"};
 
   /* ══════════════════════════════════════════════════════
      BLOQUE 7 — MODALES
