@@ -1,12 +1,13 @@
 // ============================================================
 // SitioWeb.jsx — Panel admin: propiedades de la web pública
-// Solo visible para rol admin en FANG
-// Usa window._db (Firebase v8 compat) y window._storage
+// Lee las propiedades ya cargadas en FANG (colección "props")
+// y permite agregarles detalles para la web pública.
 // ============================================================
 
 import { useState, useEffect, useRef } from "react";
 
-const COLL = "sitioWeb_propiedades";
+const COLL_WEB = "sitioWeb_propiedades";
+
 const TIPOS = ["Cabaña", "Casa", "Loft", "Departamento", "Chalet", "Suite", "Otro"];
 const MONEDAS = ["USD", "ARS"];
 const AMENITIES_SUGERIDOS = [
@@ -16,41 +17,85 @@ const AMENITIES_SUGERIDOS = [
   "Lavarropas", "Cocina equipada", "Lavavajillas",
 ];
 
-const VACIO = {
-  nombre: "", descripcion: "", tipo: "Cabaña",
+const WEB_VACIO = {
+  descripcion: "", tipo: "Cabaña",
   capacidad: "", camas: "", banos: "",
   precio: "", moneda: "USD",
   amenities: [], fotoUrl: "",
-  mostrarEnWeb: false, fangPropNombre: "", orden: 99,
+  mostrarEnWeb: false, orden: 99,
+};
+
+// ── Estilos base ────────────────────────────────────────────
+const S = {
+  label: { display:"block", fontSize:"0.72rem", fontWeight:700, color:"#a0aab4", marginBottom:5, letterSpacing:"0.07em", textTransform:"uppercase" },
+  inp:   { width:"100%", padding:"9px 11px", border:"1px solid rgba(255,255,255,0.18)", borderRadius:8, fontSize:"0.92rem", fontFamily:"inherit", outline:"none", background:"rgba(255,255,255,0.08)", color:"#f0f4f8", boxSizing:"border-box" },
+  btnPrimary: { padding:"9px 22px", background:"#2d6a4f", color:"#fff", border:"1px solid #52b788", borderRadius:8, cursor:"pointer", fontSize:"0.9rem", fontWeight:700 },
+  btnGhost:   { padding:"9px 18px", background:"rgba(255,255,255,0.07)", color:"#c9d1d9", border:"1px solid rgba(255,255,255,0.15)", borderRadius:8, cursor:"pointer", fontSize:"0.88rem" },
+  btnSm: (bg) => ({ padding:"6px 14px", background:bg, color:"#fff", border:"none", borderRadius:6, cursor:"pointer", fontSize:"0.8rem", fontWeight:600 }),
+  card:  { background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:12, padding:"1.2rem 1.4rem", marginBottom:"0.9rem" },
 };
 
 export default function SitioWeb() {
-  const [props, setProps]     = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [modal, setModal]     = useState(null);
-  const [saving, setSaving]   = useState(false);
-  const [form, setForm]       = useState(VACIO);
+  const [fangProps, setFangProps] = useState([]);   // props de FANG
+  const [webData,   setWebData]   = useState({});   // id → datos web (de sitioWeb_propiedades)
+  const [loading,   setLoading]   = useState(true);
+  const [modal,     setModal]     = useState(null); // null | fangProp object
+  const [form,      setForm]      = useState(WEB_VACIO);
+  const [saving,    setSaving]    = useState(false);
   const [uploadMsg, setUploadMsg] = useState("");
   const [amenInput, setAmenInput] = useState("");
   const fileRef = useRef(null);
 
-  // Suscripción en tiempo real
+  // ── Cargar props de FANG ────────────────────────────────
   useEffect(() => {
     if (!window._db) return;
-    const unsub = window._db
-      .collection(COLL)
-      .orderBy("orden", "asc")
-      .onSnapshot(
-        snap => { setProps(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoading(false); },
-        ()    => setLoading(false)
-      );
-    return unsub;
+
+    // Suscripción a props de FANG
+    const unsubFang = window._db.collection("props")
+      .onSnapshot(snap => {
+        setFangProps(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      });
+
+    // Suscripción a datos web
+    const unsubWeb = window._db.collection(COLL_WEB)
+      .onSnapshot(snap => {
+        const map = {};
+        snap.docs.forEach(d => { map[d.id] = { docId: d.id, ...d.data() }; });
+        setWebData(map);
+        setLoading(false);
+      }, () => setLoading(false));
+
+    return () => { unsubFang(); unsubWeb(); };
   }, []);
 
-  function abrirNuevo() { setForm({ ...VACIO }); setUploadMsg(""); setModal("nuevo"); }
-  function abrirEditar(p) { setForm({ ...VACIO, ...p }); setUploadMsg(""); setModal(p); }
+  // ── Abrir modal edición de detalles web ─────────────────
+  function abrirEditar(fangProp) {
+    const existing = webData[fangProp.id] || {};
+    setForm({ ...WEB_VACIO, ...existing });
+    setUploadMsg("");
+    setModal(fangProp);
+  }
   function cerrar() { setModal(null); setSaving(false); setUploadMsg(""); }
 
+  // ── Toggle rápido visible/oculta ────────────────────────
+  async function toggleWeb(fangProp) {
+    if (!window._db) return;
+    const existing = webData[fangProp.id];
+    const nuevoValor = !(existing?.mostrarEnWeb || false);
+    if (existing) {
+      await window._db.collection(COLL_WEB).doc(fangProp.id).update({ mostrarEnWeb: nuevoValor });
+    } else {
+      // Crear doc mínimo si no existe
+      await window._db.collection(COLL_WEB).doc(fangProp.id).set({
+        nombre: fangProp.name,
+        mostrarEnWeb: nuevoValor,
+        orden: 99,
+        createdAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+  }
+
+  // ── Subir foto ──────────────────────────────────────────
   async function subirFoto(file) {
     if (!window._storage) throw new Error("Storage no inicializado.");
     const path = `sitioWeb/${Date.now()}_${file.name}`;
@@ -62,36 +107,38 @@ export default function SitioWeb() {
     return url;
   }
 
+  // ── Guardar detalles web ────────────────────────────────
   async function guardar() {
-    if (!form.nombre.trim()) { alert("El nombre es obligatorio."); return; }
-    if (!window._db) { alert("Firebase no conectado."); return; }
+    if (!window._db || !modal) return;
     setSaving(true);
     try {
       let fotoUrl = form.fotoUrl || "";
       if (fileRef.current?.files?.[0]) fotoUrl = await subirFoto(fileRef.current.files[0]);
 
       const data = {
-        nombre:         form.nombre.trim(),
-        descripcion:    form.descripcion.trim(),
-        tipo:           form.tipo,
-        capacidad:      Number(form.capacidad) || 0,
-        camas:          Number(form.camas) || 0,
-        banos:          Number(form.banos) || 0,
-        precio:         Number(form.precio) || 0,
-        moneda:         form.moneda,
-        amenities:      form.amenities,
+        nombre:       modal.name,          // siempre del nombre en FANG
+        descripcion:  form.descripcion.trim(),
+        tipo:         form.tipo,
+        capacidad:    Number(form.capacidad) || 0,
+        camas:        Number(form.camas)     || 0,
+        banos:        Number(form.banos)     || 0,
+        precio:       Number(form.precio)    || 0,
+        moneda:       form.moneda,
+        amenities:    form.amenities,
         fotoUrl,
-        mostrarEnWeb:   Boolean(form.mostrarEnWeb),
-        fangPropNombre: form.fangPropNombre?.trim() || "",
-        orden:          Number(form.orden) || 99,
-        updatedAt:      window.firebase.firestore.FieldValue.serverTimestamp(),
+        mostrarEnWeb: Boolean(form.mostrarEnWeb),
+        orden:        Number(form.orden) || 99,
+        updatedAt:    window.firebase.firestore.FieldValue.serverTimestamp(),
       };
 
-      if (modal === "nuevo") {
-        data.createdAt = window.firebase.firestore.FieldValue.serverTimestamp();
-        await window._db.collection(COLL).add(data);
+      // Usar el mismo ID que la prop de FANG para fácil cruce
+      const docRef = window._db.collection(COLL_WEB).doc(modal.id);
+      const existing = webData[modal.id];
+      if (existing) {
+        await docRef.update(data);
       } else {
-        await window._db.collection(COLL).doc(modal.id).update(data);
+        data.createdAt = window.firebase.firestore.FieldValue.serverTimestamp();
+        await docRef.set(data);
       }
       cerrar();
     } catch (e) {
@@ -100,15 +147,6 @@ export default function SitioWeb() {
     } finally {
       setSaving(false);
     }
-  }
-
-  async function eliminar(p) {
-    if (!confirm(`¿Eliminar "${p.nombre}" de la web? Esta acción no se puede deshacer.`)) return;
-    await window._db.collection(COLL).doc(p.id).delete();
-  }
-
-  async function toggleWeb(p) {
-    await window._db.collection(COLL).doc(p.id).update({ mostrarEnWeb: !p.mostrarEnWeb });
   }
 
   function toggleAmenity(a) {
@@ -120,153 +158,208 @@ export default function SitioWeb() {
     setAmenInput("");
   }
 
+  // ── RENDER ──────────────────────────────────────────────
   return (
-    <div style={{ padding:"1.5rem", maxWidth:920, color:"var(--text-primary)" }}>
+    <div style={{ padding:"1.5rem", maxWidth:860, color:"#f0f4f8" }}>
 
-      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:"1.5rem", gap:"1rem", flexWrap:"wrap" }}>
-        <p style={{ fontSize:"0.85rem", color:"var(--text-secondary)", lineHeight:1.6 }}>
-          Solo las propiedades marcadas como <strong>Visible</strong> aparecen en la web pública.<br/>
-          Las de modalidad "solo administración" dejálas ocultas.
-        </p>
-        <button onClick={abrirNuevo} style={btnPrimary}>+ Nueva propiedad</button>
-      </div>
+      {/* Descripción */}
+      <p style={{ fontSize:"0.88rem", color:"#a0aab4", marginBottom:"1.8rem", lineHeight:1.7 }}>
+        Estas son las propiedades cargadas en FANG. Hacé clic en <strong style={{color:"#52b788"}}>Editar detalles web</strong> para agregar descripción, foto, precio y comodidades.
+        Activá el toggle <strong style={{color:"#52b788"}}>Visible</strong> para que aparezca en la web pública.
+      </p>
 
-      {loading && <p style={{ color:"var(--text-secondary)" }}>Cargando…</p>}
+      {loading && <p style={{ color:"#a0aab4" }}>Cargando propiedades…</p>}
 
-      {!loading && props.length === 0 && (
-        <div style={{ textAlign:"center", padding:"3rem", color:"var(--text-secondary)", border:"2px dashed rgba(255,255,255,0.1)", borderRadius:12 }}>
-          <p style={{ marginBottom:"1rem" }}>Aún no hay propiedades cargadas para la web pública.</p>
-          <button onClick={abrirNuevo} style={btnPrimary}>Agregar la primera</button>
+      {!loading && fangProps.length === 0 && (
+        <div style={{ textAlign:"center", padding:"3rem", color:"#a0aab4", border:"2px dashed rgba(255,255,255,0.1)", borderRadius:12 }}>
+          <p>No hay propiedades cargadas en FANG todavía.</p>
+          <p style={{ fontSize:"0.82rem", marginTop:"0.5rem" }}>Cargalas primero en la sección <strong>Propiedades/Hab.</strong></p>
         </div>
       )}
 
-      {!loading && props.length > 0 && (
-        <div style={{ overflowX:"auto", borderRadius:12, border:"1px solid rgba(255,255,255,0.08)" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"0.88rem" }}>
-            <thead>
-              <tr style={{ borderBottom:"1px solid rgba(255,255,255,0.08)", background:"rgba(255,255,255,0.03)" }}>
-                {["Ord","Foto","Nombre","Tipo","Cap.","Precio","Visible","Acciones"].map(h=>(
-                  <th key={h} style={{ padding:"10px 12px", textAlign:"left", fontWeight:600, color:"var(--text-secondary)", fontSize:"0.75rem", letterSpacing:"0.05em", textTransform:"uppercase", whiteSpace:"nowrap" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {props.map(p=>(
-                <tr key={p.id} style={{ borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
-                  <td style={td}>{p.orden}</td>
-                  <td style={td}>
-                    {p.fotoUrl
-                      ? <img src={p.fotoUrl} alt={p.nombre} style={{ width:56,height:42,objectFit:"cover",borderRadius:6 }}/>
-                      : <div style={{ width:56,height:42,background:"rgba(255,255,255,0.06)",borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"1.2rem" }}>🏠</div>
-                    }
-                  </td>
-                  <td style={td}>
-                    <span style={{ fontWeight:500 }}>{p.nombre}</span>
-                    {p.fangPropNombre && p.fangPropNombre!==p.nombre &&
-                      <span style={{ display:"block",fontSize:"0.72rem",color:"var(--text-secondary)",marginTop:2 }}>FANG: {p.fangPropNombre}</span>
-                    }
-                  </td>
-                  <td style={{...td,color:"var(--text-secondary)"}}>{p.tipo}</td>
-                  <td style={{...td,color:"var(--text-secondary)"}}>{p.capacidad||"—"}</td>
-                  <td style={td}>{p.precio?`${p.moneda} ${p.precio}`:"—"}</td>
-                  <td style={td}>
-                    <button onClick={()=>toggleWeb(p)} style={{ padding:"4px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:"0.78rem",fontWeight:600,background:p.mostrarEnWeb?"rgba(74,140,106,0.2)":"rgba(255,255,255,0.06)",color:p.mostrarEnWeb?"#6fcf97":"var(--text-secondary)" }}>
-                      {p.mostrarEnWeb?"✓ Visible":"Oculta"}
-                    </button>
-                  </td>
-                  <td style={td}>
-                    <div style={{ display:"flex",gap:6 }}>
-                      <button onClick={()=>abrirEditar(p)} style={btnSm("#4a8c6a")}>Editar</button>
-                      <button onClick={()=>eliminar(p)}    style={btnSm("#c0392b")}>Eliminar</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {/* Lista de props de FANG */}
+      {fangProps.map(p => {
+        const web = webData[p.id];
+        const visible = web?.mostrarEnWeb || false;
+        const tieneDetalles = !!(web?.descripcion || web?.fotoUrl || web?.precio);
 
-      {/* MODAL */}
+        return (
+          <div key={p.id} style={S.card}>
+            <div style={{ display:"flex", alignItems:"center", gap:"1rem", flexWrap:"wrap" }}>
+
+              {/* Color dot + nombre */}
+              <div style={{ width:14, height:14, borderRadius:"50%", background:p.color||"#4a8c6a", flexShrink:0 }}/>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontWeight:700, fontSize:"1rem", color:"#f0f4f8" }}>{p.name}</div>
+                {p.direccion && <div style={{ fontSize:"0.78rem", color:"#a0aab4", marginTop:2 }}>{p.direccion}</div>}
+                {web && (
+                  <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:6 }}>
+                    {web.tipo     && <Tag>{web.tipo}</Tag>}
+                    {web.capacidad ? <Tag>{web.capacidad} huéspedes</Tag> : null}
+                    {web.precio   ? <Tag>{web.moneda} {web.precio}/noche</Tag> : null}
+                    {!tieneDetalles && <span style={{ fontSize:"0.75rem", color:"#e09f3e" }}>⚠ Sin detalles web aún</span>}
+                  </div>
+                )}
+                {!web && <span style={{ fontSize:"0.75rem", color:"#e09f3e", marginTop:4, display:"block" }}>⚠ Sin detalles web aún</span>}
+              </div>
+
+              {/* Foto miniatura */}
+              {web?.fotoUrl
+                ? <img src={web.fotoUrl} alt={p.name} style={{ width:64, height:48, objectFit:"cover", borderRadius:8, flexShrink:0 }}/>
+                : <div style={{ width:64, height:48, background:"rgba(255,255,255,0.06)", borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"1.4rem", flexShrink:0 }}>🏠</div>
+              }
+
+              {/* Acciones */}
+              <div style={{ display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
+                <button
+                  onClick={() => toggleWeb(p)}
+                  style={{
+                    padding:"6px 16px", borderRadius:20, border:"none", cursor:"pointer",
+                    fontSize:"0.8rem", fontWeight:700,
+                    background: visible ? "rgba(82,183,136,0.2)" : "rgba(255,255,255,0.07)",
+                    color:      visible ? "#52b788" : "#a0aab4",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  {visible ? "✓ Visible" : "Oculta"}
+                </button>
+                <button onClick={() => abrirEditar(p)} style={S.btnSm("#2d6a4f")}>
+                  Editar detalles web
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* ── MODAL ── */}
       {modal && (
-        <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem" }}>
-          <div style={{ background:"var(--card-bg,#1e2a35)",borderRadius:14,padding:"2rem",width:"100%",maxWidth:660,maxHeight:"90vh",overflowY:"auto",border:"1px solid rgba(255,255,255,0.1)" }}>
-            <h3 style={{ marginBottom:"1.4rem",fontSize:"1.1rem",fontWeight:700 }}>
-              {modal==="nuevo"?"🌐 Nueva propiedad para la web":`✏️ Editar: ${modal.nombre}`}
-            </h3>
-            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem" }}>
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.72)", zIndex:2000, display:"flex", alignItems:"center", justifyContent:"center", padding:"1rem" }}>
+          <div style={{ background:"#1a2332", border:"1px solid rgba(255,255,255,0.14)", borderRadius:16, padding:"2rem", width:"100%", maxWidth:660, maxHeight:"90vh", overflowY:"auto" }}>
 
-              <Field label="Nombre *" span={2}><input value={form.nombre} onChange={e=>setForm(f=>({...f,nombre:e.target.value}))} placeholder="Ej: Cabaña del Bosque" style={inp}/></Field>
+            <div style={{ marginBottom:"1.5rem" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <div style={{ width:14, height:14, borderRadius:"50%", background:modal.color||"#4a8c6a" }}/>
+                <h3 style={{ fontSize:"1.15rem", fontWeight:700, color:"#f0f4f8", margin:0 }}>
+                  {modal.name}
+                </h3>
+              </div>
+              <p style={{ fontSize:"0.82rem", color:"#a0aab4", marginTop:6, marginLeft:24 }}>
+                Completá los detalles que se van a mostrar en la web pública.
+              </p>
+            </div>
 
-              <Field label="Tipo">
-                <select value={form.tipo} onChange={e=>setForm(f=>({...f,tipo:e.target.value}))} style={inp}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1.1rem" }}>
+
+              <div style={{ gridColumn:"1 / -1" }}>
+                <label style={S.label}>Tipo de propiedad</label>
+                <select value={form.tipo} onChange={e=>setForm(f=>({...f,tipo:e.target.value}))} style={S.inp}>
                   {TIPOS.map(t=><option key={t}>{t}</option>)}
                 </select>
-              </Field>
+              </div>
 
-              <Field label="Nombre en FANG (para el calendario)">
-                <input value={form.fangPropNombre} onChange={e=>setForm(f=>({...f,fangPropNombre:e.target.value}))} placeholder="Exactamente como aparece en FANG" style={inp}/>
-              </Field>
+              <div style={{ gridColumn:"1 / -1" }}>
+                <label style={S.label}>Descripción para la web</label>
+                <textarea value={form.descripcion} onChange={e=>setForm(f=>({...f,descripcion:e.target.value}))} rows={4} placeholder="Texto que verán los huéspedes al ver esta propiedad…" style={{...S.inp,resize:"vertical"}}/>
+              </div>
 
-              <Field label="Descripción para la web" span={2}>
-                <textarea value={form.descripcion} onChange={e=>setForm(f=>({...f,descripcion:e.target.value}))} rows={3} placeholder="Texto que verán los huéspedes…" style={{...inp,resize:"vertical"}}/>
-              </Field>
+              <div>
+                <label style={S.label}>Capacidad (huéspedes)</label>
+                <input type="number" min={1} value={form.capacidad} onChange={e=>setForm(f=>({...f,capacidad:e.target.value}))} style={S.inp}/>
+              </div>
+              <div>
+                <label style={S.label}>Camas</label>
+                <input type="number" min={1} value={form.camas} onChange={e=>setForm(f=>({...f,camas:e.target.value}))} style={S.inp}/>
+              </div>
+              <div>
+                <label style={S.label}>Baños</label>
+                <input type="number" min={1} value={form.banos} onChange={e=>setForm(f=>({...f,banos:e.target.value}))} style={S.inp}/>
+              </div>
+              <div>
+                <label style={S.label}>Orden en la web (1 = primero)</label>
+                <input type="number" min={1} value={form.orden} onChange={e=>setForm(f=>({...f,orden:e.target.value}))} style={S.inp}/>
+              </div>
 
-              <Field label="Capacidad (huéspedes)"><input type="number" min={1} value={form.capacidad} onChange={e=>setForm(f=>({...f,capacidad:e.target.value}))} style={inp}/></Field>
-              <Field label="Camas"><input type="number" min={1} value={form.camas} onChange={e=>setForm(f=>({...f,camas:e.target.value}))} style={inp}/></Field>
-              <Field label="Baños"><input type="number" min={1} value={form.banos} onChange={e=>setForm(f=>({...f,banos:e.target.value}))} style={inp}/></Field>
-              <Field label="Orden en la web (1 = primero)"><input type="number" min={1} value={form.orden} onChange={e=>setForm(f=>({...f,orden:e.target.value}))} style={inp}/></Field>
-
-              <Field label="Precio por noche"><input type="number" min={0} value={form.precio} onChange={e=>setForm(f=>({...f,precio:e.target.value}))} placeholder="120" style={inp}/></Field>
-              <Field label="Moneda">
-                <select value={form.moneda} onChange={e=>setForm(f=>({...f,moneda:e.target.value}))} style={inp}>
+              <div>
+                <label style={S.label}>Precio por noche</label>
+                <input type="number" min={0} value={form.precio} onChange={e=>setForm(f=>({...f,precio:e.target.value}))} placeholder="120" style={S.inp}/>
+              </div>
+              <div>
+                <label style={S.label}>Moneda</label>
+                <select value={form.moneda} onChange={e=>setForm(f=>({...f,moneda:e.target.value}))} style={S.inp}>
                   {MONEDAS.map(m=><option key={m}>{m}</option>)}
                 </select>
-              </Field>
+              </div>
 
-              <Field label="Foto principal" span={2}>
-                <div style={{ display:"flex",alignItems:"center",gap:"1rem",flexWrap:"wrap" }}>
-                  {form.fotoUrl && <img src={form.fotoUrl} alt="" style={{ width:80,height:60,objectFit:"cover",borderRadius:6,border:"1px solid rgba(255,255,255,0.1)" }}/>}
+              {/* Foto */}
+              <div style={{ gridColumn:"1 / -1" }}>
+                <label style={S.label}>Foto principal</label>
+                <div style={{ display:"flex", alignItems:"center", gap:"1rem", flexWrap:"wrap", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:8, padding:"0.8rem 1rem" }}>
+                  {form.fotoUrl && <img src={form.fotoUrl} alt="" style={{ width:90, height:66, objectFit:"cover", borderRadius:6 }}/>}
                   <div>
-                    <input ref={fileRef} type="file" accept="image/*" style={{ fontSize:"0.85rem",color:"var(--text-primary)" }}/>
-                    <p style={{ fontSize:"0.72rem",color:"var(--text-secondary)",marginTop:4 }}>JPG o PNG. Reemplaza la foto anterior.</p>
-                    {uploadMsg && <p style={{ fontSize:"0.8rem",color:"#6fcf97",marginTop:4 }}>{uploadMsg}</p>}
+                    <input ref={fileRef} type="file" accept="image/*" style={{ fontSize:"0.85rem", color:"#c9d1d9" }}/>
+                    <p style={{ fontSize:"0.72rem", color:"#a0aab4", marginTop:4 }}>JPG o PNG. Reemplaza la foto anterior.</p>
+                    {uploadMsg && <p style={{ fontSize:"0.82rem", color:"#52b788", marginTop:4 }}>{uploadMsg}</p>}
                   </div>
                 </div>
-              </Field>
+              </div>
 
-              <Field label="Comodidades" span={2}>
-                <div style={{ display:"flex",flexWrap:"wrap",gap:6,marginBottom:10 }}>
-                  {AMENITIES_SUGERIDOS.map(a=>(
-                    <button key={a} type="button" onClick={()=>toggleAmenity(a)} style={{ padding:"4px 11px",borderRadius:16,border:"1.5px solid",fontSize:"0.78rem",cursor:"pointer",background:form.amenities.includes(a)?"rgba(74,140,106,0.3)":"rgba(255,255,255,0.05)",color:form.amenities.includes(a)?"#6fcf97":"var(--text-secondary)",borderColor:form.amenities.includes(a)?"#4a8c6a":"rgba(255,255,255,0.12)" }}>{a}</button>
+              {/* Amenities */}
+              <div style={{ gridColumn:"1 / -1" }}>
+                <label style={S.label}>Comodidades</label>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:7, marginBottom:10 }}>
+                  {AMENITIES_SUGERIDOS.map(a => (
+                    <button key={a} type="button" onClick={()=>toggleAmenity(a)} style={{
+                      padding:"5px 12px", borderRadius:16, border:"1.5px solid", fontSize:"0.8rem", cursor:"pointer",
+                      background:  form.amenities.includes(a) ? "rgba(82,183,136,0.2)" : "rgba(255,255,255,0.05)",
+                      color:       form.amenities.includes(a) ? "#52b788" : "#a0aab4",
+                      borderColor: form.amenities.includes(a) ? "#52b788" : "rgba(255,255,255,0.15)",
+                      fontWeight:  form.amenities.includes(a) ? 600 : 400,
+                    }}>{a}</button>
                   ))}
                 </div>
-                <div style={{ display:"flex",gap:6 }}>
-                  <input value={amenInput} onChange={e=>setAmenInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(e.preventDefault(),addCustomAmenity())} placeholder="Otra comodidad personalizada…" style={{...inp,flex:1}}/>
-                  <button type="button" onClick={addCustomAmenity} style={btnSm("#4a8c6a")}>+ Agregar</button>
+                <div style={{ display:"flex", gap:8 }}>
+                  <input
+                    value={amenInput}
+                    onChange={e=>setAmenInput(e.target.value)}
+                    onKeyDown={e=>e.key==="Enter"&&(e.preventDefault(),addCustomAmenity())}
+                    placeholder="Otra comodidad…"
+                    style={{...S.inp, flex:1}}
+                  />
+                  <button type="button" onClick={addCustomAmenity} style={S.btnSm("#2d6a4f")}>+ Agregar</button>
                 </div>
-              </Field>
+              </div>
 
-              <Field label="Visibilidad en la web pública" span={2}>
-                <label style={{ display:"flex",alignItems:"center",gap:10,cursor:"pointer" }}>
-                  <input type="checkbox" checked={form.mostrarEnWeb} onChange={e=>setForm(f=>({...f,mostrarEnWeb:e.target.checked}))} style={{ width:18,height:18,cursor:"pointer",accentColor:"#4a8c6a" }}/>
-                  <span style={{ fontSize:"0.9rem",color:form.mostrarEnWeb?"#6fcf97":"var(--text-secondary)" }}>
-                    {form.mostrarEnWeb?"✓ Visible en la web pública":"Oculta — no aparece en la web"}
-                  </span>
+              {/* Visible */}
+              <div style={{ gridColumn:"1 / -1" }}>
+                <label style={S.label}>Visibilidad en la web pública</label>
+                <label style={{ display:"flex", alignItems:"center", gap:12, cursor:"pointer", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:8, padding:"0.8rem 1rem" }}>
+                  <input
+                    type="checkbox"
+                    checked={form.mostrarEnWeb}
+                    onChange={e=>setForm(f=>({...f,mostrarEnWeb:e.target.checked}))}
+                    style={{ width:18, height:18, cursor:"pointer", accentColor:"#52b788" }}
+                  />
+                  <div>
+                    <span style={{ fontSize:"0.92rem", color: form.mostrarEnWeb ? "#52b788" : "#a0aab4", fontWeight:600 }}>
+                      {form.mostrarEnWeb ? "✓ Visible en la web pública" : "Oculta — no aparece en la web"}
+                    </span>
+                    <p style={{ fontSize:"0.75rem", color:"#a0aab4", marginTop:3 }}>
+                      Las propiedades en modalidad "solo administración" deben quedar desmarcadas.
+                    </p>
+                  </div>
                 </label>
-                <p style={{ fontSize:"0.75rem",color:"var(--text-secondary)",marginTop:5,marginLeft:28,lineHeight:1.5 }}>
-                  Las propiedades en modalidad "solo administración" deben quedar desmarcadas.
-                </p>
-              </Field>
+              </div>
 
-            </div>
+            </div>{/* /grid */}
 
-            <div style={{ display:"flex",justifyContent:"flex-end",gap:10,marginTop:"1.5rem",paddingTop:"1rem",borderTop:"1px solid rgba(255,255,255,0.08)" }}>
-              <button onClick={cerrar} disabled={saving} style={btnSm("rgba(255,255,255,0.1)")}>Cancelar</button>
-              <button onClick={guardar} disabled={saving} style={btnPrimary}>
-                {saving?"Guardando…":modal==="nuevo"?"Crear propiedad":"Guardar cambios"}
+            <div style={{ display:"flex", justifyContent:"flex-end", gap:10, marginTop:"1.8rem", paddingTop:"1rem", borderTop:"1px solid rgba(255,255,255,0.08)" }}>
+              <button onClick={cerrar} disabled={saving} style={S.btnGhost}>Cancelar</button>
+              <button onClick={guardar} disabled={saving} style={S.btnPrimary}>
+                {saving ? "Guardando…" : "Guardar cambios"}
               </button>
             </div>
+
           </div>
         </div>
       )}
@@ -274,15 +367,10 @@ export default function SitioWeb() {
   );
 }
 
-function Field({ label, children, span }) {
+function Tag({ children }) {
   return (
-    <div style={{ gridColumn:span===2?"1 / -1":undefined }}>
-      <label style={{ display:"block",fontSize:"0.72rem",fontWeight:600,color:"var(--text-secondary)",marginBottom:5,letterSpacing:"0.06em",textTransform:"uppercase" }}>{label}</label>
+    <span style={{ background:"rgba(255,255,255,0.08)", color:"#c9d1d9", fontSize:"0.75rem", padding:"2px 9px", borderRadius:10 }}>
       {children}
-    </div>
+    </span>
   );
 }
-const td         = { padding:"10px 12px" };
-const inp        = { width:"100%",padding:"8px 10px",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,fontSize:"0.9rem",fontFamily:"inherit",outline:"none",background:"rgba(255,255,255,0.05)",color:"var(--text-primary)" };
-const btnPrimary = { padding:"9px 20px",background:"#1b3a2d",color:"#fff",border:"1px solid #4a8c6a",borderRadius:8,cursor:"pointer",fontSize:"0.88rem",fontWeight:600 };
-function btnSm(bg) { return { padding:"6px 14px",background:bg,color:"#fff",border:"none",borderRadius:6,cursor:"pointer",fontSize:"0.8rem",fontWeight:500 }; }
