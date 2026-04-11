@@ -18,6 +18,7 @@ const AMENITIES_SUGERIDOS = [
 ];
 
 const WEB_VACIO = {
+  nombreWeb: "",
   descripcion: "", tipo: "Cabaña",
   capacidad: "", camas: "", banos: "",
   precio: "", moneda: "USD",
@@ -28,7 +29,7 @@ const WEB_VACIO = {
 // ── Estilos base ────────────────────────────────────────────
 const S = {
   label: { display:"block", fontSize:"0.72rem", fontWeight:700, color:"#a0aab4", marginBottom:5, letterSpacing:"0.07em", textTransform:"uppercase" },
-  inp:   { width:"100%", padding:"9px 11px", border:"1px solid rgba(255,255,255,0.18)", borderRadius:8, fontSize:"0.92rem", fontFamily:"inherit", outline:"none", background:"rgba(255,255,255,0.08)", color:"#f0f4f8", boxSizing:"border-box" },
+  inp:   { width:"100%", padding:"9px 11px", border:"1px solid rgba(255,255,255,0.18)", borderRadius:8, fontSize:"0.92rem", fontFamily:"inherit", outline:"none", background:"#1e2d3d", color:"#f0f4f8", boxSizing:"border-box" },
   btnPrimary: { padding:"9px 22px", background:"#2d6a4f", color:"#fff", border:"1px solid #52b788", borderRadius:8, cursor:"pointer", fontSize:"0.9rem", fontWeight:700 },
   btnGhost:   { padding:"9px 18px", background:"rgba(255,255,255,0.07)", color:"#c9d1d9", border:"1px solid rgba(255,255,255,0.15)", borderRadius:8, cursor:"pointer", fontSize:"0.88rem" },
   btnSm: (bg) => ({ padding:"6px 14px", background:bg, color:"#fff", border:"none", borderRadius:6, cursor:"pointer", fontSize:"0.8rem", fontWeight:600 }),
@@ -71,7 +72,7 @@ export default function SitioWeb() {
   // ── Abrir modal edición de detalles web ─────────────────
   function abrirEditar(fangProp) {
     const existing = webData[fangProp.id] || {};
-    setForm({ ...WEB_VACIO, ...existing });
+    setForm({ ...WEB_VACIO, ...existing, nombreWeb: existing.nombre && existing.nombre !== fangProp.name ? existing.nombre : "" });
     setUploadMsg("");
     setModal(fangProp);
   }
@@ -116,7 +117,8 @@ export default function SitioWeb() {
       if (fileRef.current?.files?.[0]) fotoUrl = await subirFoto(fileRef.current.files[0]);
 
       const data = {
-        nombre:       modal.name,          // siempre del nombre en FANG
+        nombre:       form.nombreWeb.trim() || modal.name,
+        nombreFang:   modal.name,
         descripcion:  form.descripcion.trim(),
         tipo:         form.tipo,
         capacidad:    Number(form.capacidad) || 0,
@@ -190,8 +192,12 @@ export default function SitioWeb() {
               {/* Color dot + nombre */}
               <div style={{ width:14, height:14, borderRadius:"50%", background:p.color||"#4a8c6a", flexShrink:0 }}/>
               <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontWeight:700, fontSize:"1rem", color:"#f0f4f8" }}>{p.name}</div>
-                {p.direccion && <div style={{ fontSize:"0.78rem", color:"#a0aab4", marginTop:2 }}>{p.direccion}</div>}
+                <div style={{ fontWeight:700, fontSize:"1rem", color:"#f0f4f8" }}>
+                  {web?.nombre && web.nombre !== p.name ? web.nombre : p.name}
+                </div>
+                <div style={{ fontSize:"0.78rem", color:"#a0aab4", marginTop:2 }}>
+                  {web?.nombre && web.nombre !== p.name ? `FANG: ${p.name}` : (p.direccion || "")}
+                </div>
                 {web && (
                   <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:6 }}>
                     {web.tipo     && <Tag>{web.tipo}</Tag>}
@@ -252,9 +258,15 @@ export default function SitioWeb() {
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"1.1rem" }}>
 
               <div style={{ gridColumn:"1 / -1" }}>
+                <label style={S.label}>Nombre para la web</label>
+                <input value={form.nombreWeb} onChange={e=>setForm(f=>({...f,nombreWeb:e.target.value}))} placeholder={`Ej: Cabaña del Bosque (en FANG: ${modal.name})`} style={S.inp}/>
+                <p style={{ fontSize:"0.72rem", color:"#a0aab4", marginTop:4 }}>El nombre que verán los huéspedes. Si lo dejás vacío se usa el nombre de FANG.</p>
+              </div>
+
+              <div style={{ gridColumn:"1 / -1" }}>
                 <label style={S.label}>Tipo de propiedad</label>
                 <select value={form.tipo} onChange={e=>setForm(f=>({...f,tipo:e.target.value}))} style={S.inp}>
-                  {TIPOS.map(t=><option key={t}>{t}</option>)}
+                  {TIPOS.map(t=><option key={t} style={{background:"#1e2d3d",color:"#f0f4f8"}}>{t}</option>)}
                 </select>
               </div>
 
@@ -287,7 +299,7 @@ export default function SitioWeb() {
               <div>
                 <label style={S.label}>Moneda</label>
                 <select value={form.moneda} onChange={e=>setForm(f=>({...f,moneda:e.target.value}))} style={S.inp}>
-                  {MONEDAS.map(m=><option key={m}>{m}</option>)}
+                  {MONEDAS.map(m=><option key={m} style={{background:"#1e2d3d",color:"#f0f4f8"}}>{m}</option>)}
                 </select>
               </div>
 
