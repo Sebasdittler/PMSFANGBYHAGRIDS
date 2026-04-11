@@ -72,7 +72,18 @@ export default function SitioWeb() {
   // ── Abrir modal edición de detalles web ─────────────────
   function abrirEditar(fangProp) {
     const existing = webData[fangProp.id] || {};
-    setForm({ ...WEB_VACIO, ...existing, nombreWeb: existing.nombre && existing.nombre !== fangProp.name ? existing.nombre : "" });
+    // Calcular camas y capacidad desde dormitorios de FANG
+    const dorms     = Array.isArray(fangProp.dormitorios) ? fangProp.dormitorios : [];
+    const camasCalc = dorms.reduce((s,d) => s + (d.matrimoniales||0) + (d.simples||0), 0);
+    const capacCalc = dorms.reduce((s,d) => s + (d.matrimoniales||0)*2 + (d.simples||0), 0);
+    const nombreWeb = existing.nombre && existing.nombre !== fangProp.name ? existing.nombre : fangProp.name;
+    setForm({
+      ...WEB_VACIO,
+      camas:     camasCalc || "",
+      capacidad: capacCalc || "",
+      ...existing,
+      nombreWeb,
+    });
     setUploadMsg("");
     setModal(fangProp);
   }
@@ -240,7 +251,7 @@ export default function SitioWeb() {
 
       {/* ── MODAL ── */}
       {modal && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.72)", zIndex:2000, display:"flex", alignItems:"center", justifyContent:"center", padding:"1rem" }}>
+        <div onClick={e=>e.target===e.currentTarget&&cerrar()} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.72)", zIndex:2000, display:"flex", alignItems:"center", justifyContent:"center", padding:"1rem" }}>
           <div style={{ background:"#1a2332", border:"1px solid rgba(255,255,255,0.14)", borderRadius:16, padding:"2rem", width:"100%", maxWidth:660, maxHeight:"90vh", overflowY:"auto" }}>
 
             <div style={{ marginBottom:"1.5rem" }}>
