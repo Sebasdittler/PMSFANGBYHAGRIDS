@@ -110,6 +110,12 @@ export default function SitioWeb() {
   const [amenInput, setAmenInput] = useState("");
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef(null);
+  // Hero photos
+  const [fotosHero,    setFotosHero]    = useState([]);
+  const [savingHero,   setSavingHero]   = useState(false);
+  const [uploadHero,   setUploadHero]   = useState("");
+  const [uploadingHero,setUploadingHero]= useState(false);
+  const fileHeroRef = useRef(null);
 
   // ── Suscripciones Firestore ──────────────────────────────
   useEffect(() => {
@@ -123,7 +129,12 @@ export default function SitioWeb() {
         setWebData(map);
         setLoading(false);
       }, () => setLoading(false));
-    return () => { unsubFang(); unsubWeb(); };
+    // Hero photos
+    const unsubHero = window._db.collection("sitioWeb_config").doc("general")
+      .onSnapshot(snap => {
+        if (snap.exists) setFotosHero(snap.data().fotosHero || []);
+      }, () => {});
+    return () => { unsubFang(); unsubWeb(); unsubHero(); };
   }, []);
 
   // ── Abrir modal ──────────────────────────────────────────
@@ -154,6 +165,35 @@ export default function SitioWeb() {
   }
   function cerrar() { setModal(null); setSaving(false); setUploadMsg(""); }
 
+  // ── Hero photos ─────────────────────────────────────────
+  async function subirFotoHero(file) {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("upload_preset", CLD_PRESET);
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLD_CLOUD}/image/upload`, { method:"POST", body:fd });
+    if (!res.ok) throw new Error("Error al subir");
+    return (await res.json()).secure_url;
+  }
+  async function agregarFotosHero(files) {
+    if (!files?.length) return;
+    setUploadingHero(true); setUploadHero(`Subiendo ${files.length} foto${files.length>1?"s":""}…`);
+    try {
+      const urls = await Promise.all(Array.from(files).map(subirFotoHero));
+      setFotosHero(f => [...f, ...urls]);
+      setUploadHero(`✓ ${urls.length} foto${urls.length>1?"s":""}  agregada${urls.length>1?"s":""}`);
+    } catch(e) { setUploadHero("Error: "+e.message); }
+    finally { setUploadingHero(false); if(fileHeroRef.current) fileHeroRef.current.value=""; }
+  }
+  function eliminarFotoHero(idx) { setFotosHero(f => f.filter((_,i)=>i!==idx)); }
+  async function guardarFotosHero() {
+    if (!window._db) return;
+    setSavingHero(true);
+    try {
+      await window._db.collection("sitioWeb_config").doc("general").set({ fotosHero }, { merge:true });
+    } catch(e) { alert("Error al guardar: "+e.message); }
+    finally { setSavingHero(false); }
+  }
+
   // ── Toggle visible/oculta ────────────────────────────────
   async function toggleWeb(fangProp) {
     if (!window._db) return;
@@ -175,7 +215,6 @@ export default function SitioWeb() {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("upload_preset", CLD_PRESET);
-    fd.append("folder", "hagrids/propiedades");
     const res = await fetch(`https://api.cloudinary.com/v1_1/${CLD_CLOUD}/image/upload`, {
       method: "POST", body: fd,
     });
@@ -277,6 +316,39 @@ export default function SitioWeb() {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
           Ver web pública
         </a>
+      </div>
+
+      {/* ── Fotos del hero (portada) ── */}
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"1.2rem 1.4rem", marginBottom:"1.5rem" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1rem", flexWrap:"wrap", gap:8 }}>
+          <div>
+            <div style={{ fontWeight:700, fontSize:"0.9rem", color:C.text }}>Fotos de portada del sitio</div>
+            <div style={{ fontSize:"0.75rem", color:C.muted, marginTop:2 }}>Estas fotos rotan en el slideshow del inicio. Mínimo 1, recomendado 4-5.</div>
+          </div>
+          <button onClick={guardarFotosHero} disabled={savingHero} style={S.btnPrimary}>
+            {savingHero ? "Guardando…" : "Guardar fotos"}
+          </button>
+        </div>
+        {fotosHero.length > 0 && (
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:"0.9rem" }}>
+            {fotosHero.map((url,i) => (
+              <div key={i} style={{ position:"relative", width:100, height:70 }}>
+                <img src={url} alt={`Hero ${i+1}`} style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:8, display:"block", border:`1px solid ${C.border}` }}/>
+                {i===0 && <div style={{ position:"absolute", top:3, left:3, background:"rgba(82,183,136,0.9)", color:"#fff", fontSize:"0.55rem", padding:"1px 5px", borderRadius:4, fontWeight:700 }}>1ERA</div>}
+                <button onClick={()=>eliminarFotoHero(i)} style={{ position:"absolute", top:-5, right:-5, width:18, height:18, borderRadius:"50%", background:"#e05252", border:"none", color:"#fff", fontSize:"0.7rem", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ background:"rgba(255,255,255,0.03)", border:`1px dashed ${C.border}`, borderRadius:8, padding:"0.8rem", textAlign:"center" }}>
+          <input ref={fileHeroRef} type="file" accept="image/*" multiple onChange={e=>agregarFotosHero(e.target.files)} style={{ display:"none" }} id="hero-upload"/>
+          <label htmlFor="hero-upload" style={{ cursor:"pointer", display:"inline-flex", flexDirection:"column", alignItems:"center", gap:5 }}>
+            <span style={{ fontSize:"1.3rem" }}>🖼️</span>
+            <span style={{ fontSize:"0.82rem", color:C.green, fontWeight:600 }}>{uploadingHero ? uploadHero : "Subir fotos de portada"}</span>
+            <span style={{ fontSize:"0.7rem", color:C.muted }}>JPG o PNG · podés seleccionar varias</span>
+          </label>
+          {uploadHero && !uploadingHero && <div style={{ marginTop:6, fontSize:"0.78rem", color:C.green }}>{uploadHero}</div>}
+        </div>
       </div>
 
       {loading && (
