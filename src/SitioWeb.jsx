@@ -70,7 +70,7 @@ function CompletitudBar({ web }) {
   const checks = [
     !!web?.descripcion,
     (web?.fotos?.length > 0) || !!web?.fotoUrl,
-    !!web?.precio,
+    (web?.tarifas?.some(t => t.precioBase)) || !!web?.precio,
     (web?.amenities?.length > 0),
     !!web?.tipo,
   ];
