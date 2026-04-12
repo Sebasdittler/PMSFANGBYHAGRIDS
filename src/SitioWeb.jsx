@@ -7,6 +7,10 @@ import { useState, useEffect, useRef } from "react";
 const COLL_WEB = "sitioWeb_propiedades";
 const URL_WEB  = "https://web-page-pms.vercel.app";
 
+// ── Cloudinary ───────────────────────────────────────────────
+const CLD_CLOUD  = "dpedzxviy";
+const CLD_PRESET = "fang-fotos";
+
 const TIPOS = ["Cabaña", "Casa", "Loft", "Departamento", "Chalet", "Suite", "Otro"];
 const MONEDAS = ["USD", "ARS"];
 const AMENITIES_SUGERIDOS = [
@@ -146,12 +150,18 @@ export default function SitioWeb() {
     }
   }
 
-  // ── Subir una foto a Storage ─────────────────────────────
+  // ── Subir una foto a Cloudinary ──────────────────────────
   async function subirFoto(file) {
-    if (!window._storage) throw new Error("Storage no inicializado.");
-    const path = `sitioWeb/${Date.now()}_${file.name}`;
-    const snap = await window._storage.ref(path).put(file);
-    return await snap.ref.getDownloadURL();
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("upload_preset", CLD_PRESET);
+    fd.append("folder", "hagrids/propiedades");
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLD_CLOUD}/image/upload`, {
+      method: "POST", body: fd,
+    });
+    if (!res.ok) throw new Error("Error al subir a Cloudinary");
+    const data = await res.json();
+    return data.secure_url;
   }
 
   // ── Agregar fotos desde el input ─────────────────────────
