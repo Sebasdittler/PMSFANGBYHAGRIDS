@@ -20,12 +20,23 @@ const AMENITIES_SUGERIDOS = [
   "Lavarropas", "Cocina equipada", "Lavavajillas",
 ];
 
+const TEMP_VACIA = (nombre, color) => ({
+  nombre, color,
+  rangos: [{ desde: "", hasta: "" }],
+  precioBase: "", huespedes: "", extraPorHuesped: "", minimoNoches: "",
+});
+
 const WEB_VACIO = {
   nombreWeb: "", descripcion: "", tipo: "Cabaña",
   capacidad: "", camas: "", banos: "",
   precio: "", moneda: "USD",
   amenities: [], fotos: [], fotoUrl: "",
   mostrarEnWeb: false, orden: 99,
+  tarifas: [
+    TEMP_VACIA("Temporada alta",  "#e09f3e"),
+    TEMP_VACIA("Temporada media", "#52b788"),
+    TEMP_VACIA("Temporada baja",  "#5b8fd4"),
+  ],
 };
 
 // ── Tokens de diseño (coherentes con FANG) ──────────────────
@@ -122,6 +133,14 @@ export default function SitioWeb() {
     const camasCalc = dorms.reduce((s,d) => s + (d.matrimoniales||0) + (d.simples||0), 0);
     const capacCalc = dorms.reduce((s,d) => s + (d.matrimoniales||0)*2 + (d.simples||0), 0);
     const nombreWeb = existing.nombre && existing.nombre !== fangProp.name ? existing.nombre : fangProp.name;
+    const tarifasBase = [
+      TEMP_VACIA("Temporada alta",  "#e09f3e"),
+      TEMP_VACIA("Temporada media", "#52b788"),
+      TEMP_VACIA("Temporada baja",  "#5b8fd4"),
+    ];
+    const tarifas = existing.tarifas?.length === 3
+      ? existing.tarifas
+      : tarifasBase;
     setForm({
       ...WEB_VACIO,
       camas:     camasCalc || "",
@@ -129,6 +148,7 @@ export default function SitioWeb() {
       ...existing,
       fotos:     existing.fotos || (existing.fotoUrl ? [existing.fotoUrl] : []),
       nombreWeb,
+      tarifas,
     });
     setUploadMsg(""); setModal(fangProp);
   }
@@ -201,6 +221,7 @@ export default function SitioWeb() {
         precio:      Number(form.precio)    || 0,
         moneda:      form.moneda,
         amenities:   form.amenities,
+        tarifas:     form.tarifas || [],
         fotos:       form.fotos || [],
         fotoUrl:     form.fotos?.[0] || form.fotoUrl || "",
         mostrarEnWeb: Boolean(form.mostrarEnWeb),
@@ -422,21 +443,84 @@ export default function SitioWeb() {
                 </div>
               </Seccion>
 
-              {/* ── Precio ── */}
-              <Seccion titulo="Precio de referencia">
-                <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr", gap:"1rem" }}>
-                  <div>
-                    <label style={S.label}>Precio por noche</label>
-                    <input type="number" min={0} value={form.precio} onChange={e=>setForm(f=>({...f,precio:e.target.value}))} placeholder="120" style={S.inp}/>
-                  </div>
-                  <div>
-                    <label style={S.label}>Moneda</label>
-                    <select value={form.moneda} onChange={e=>setForm(f=>({...f,moneda:e.target.value}))} style={S.inp}>
-                      {MONEDAS.map(m=><option key={m} style={{background:C.surface2,color:C.text}}>{m}</option>)}
-                    </select>
-                  </div>
+              {/* ── Moneda ── */}
+              <Seccion titulo="Moneda">
+                <div style={{ maxWidth:180 }}>
+                  <label style={S.label}>Moneda de las tarifas</label>
+                  <select value={form.moneda} onChange={e=>setForm(f=>({...f,moneda:e.target.value}))} style={S.inp}>
+                    {MONEDAS.map(m=><option key={m} style={{background:C.surface2,color:C.text}}>{m}</option>)}
+                  </select>
                 </div>
-                <p style={{ fontSize:"0.72rem", color:C.muted, marginTop:6 }}>El precio es referencial — el huésped consulta disponibilidad por WhatsApp.</p>
+              </Seccion>
+
+              {/* ── Tarifas ── */}
+              <Seccion titulo="Tarifas por temporada">
+                <p style={{ fontSize:"0.75rem", color:C.muted, marginBottom:"1rem", lineHeight:1.6 }}>
+                  Configurá precio, huéspedes incluidos, cargo extra y mínimo de noches por temporada. Las fechas usá formato MM-DD (ej: 12-15 para 15 de diciembre). Podés agregar varios rangos por temporada.
+                </p>
+                {form.tarifas.map((temp, ti) => (
+                  <div key={ti} style={{ border:`1px solid ${C.border}`, borderRadius:10, marginBottom:"1rem", overflow:"hidden" }}>
+                    {/* Header temporada */}
+                    <div style={{ background:`${temp.color}22`, borderBottom:`1px solid ${C.border2}`, padding:"0.7rem 1rem", display:"flex", alignItems:"center", gap:8 }}>
+                      <div style={{ width:10, height:10, borderRadius:"50%", background:temp.color, flexShrink:0 }}/>
+                      <span style={{ fontWeight:700, fontSize:"0.88rem", color:temp.color }}>{temp.nombre}</span>
+                    </div>
+                    <div style={{ padding:"1rem" }}>
+                      {/* Precios */}
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"0.8rem", marginBottom:"0.9rem" }}>
+                        <div>
+                          <label style={S.label}>Precio base / noche</label>
+                          <input type="number" min={0} placeholder="700" value={temp.precioBase}
+                            onChange={e=>setForm(f=>({...f,tarifas:f.tarifas.map((t,i)=>i===ti?{...t,precioBase:e.target.value}:t)}))}
+                            style={S.inp}/>
+                        </div>
+                        <div>
+                          <label style={S.label}>Huéspedes incluidos</label>
+                          <input type="number" min={1} placeholder="8" value={temp.huespedes}
+                            onChange={e=>setForm(f=>({...f,tarifas:f.tarifas.map((t,i)=>i===ti?{...t,huespedes:e.target.value}:t)}))}
+                            style={S.inp}/>
+                        </div>
+                        <div>
+                          <label style={S.label}>Extra / huésped adicional</label>
+                          <input type="number" min={0} placeholder="50" value={temp.extraPorHuesped}
+                            onChange={e=>setForm(f=>({...f,tarifas:f.tarifas.map((t,i)=>i===ti?{...t,extraPorHuesped:e.target.value}:t)}))}
+                            style={S.inp}/>
+                        </div>
+                      </div>
+                      {/* Mínimo */}
+                      <div style={{ marginBottom:"0.9rem", maxWidth:180 }}>
+                        <label style={S.label}>Mínimo de noches</label>
+                        <input type="number" min={1} placeholder="3" value={temp.minimoNoches}
+                          onChange={e=>setForm(f=>({...f,tarifas:f.tarifas.map((t,i)=>i===ti?{...t,minimoNoches:e.target.value}:t)}))}
+                          style={S.inp}/>
+                      </div>
+                      {/* Rangos de fechas */}
+                      <div style={{ fontSize:"0.68rem", fontWeight:700, color:C.muted, letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:8 }}>Fechas</div>
+                      {temp.rangos.map((rango, ri) => (
+                        <div key={ri} style={{ display:"flex", gap:8, alignItems:"center", marginBottom:6 }}>
+                          <input placeholder="Desde MM-DD" value={rango.desde}
+                            onChange={e=>setForm(f=>({...f,tarifas:f.tarifas.map((t,i)=>i===ti?{...t,rangos:t.rangos.map((r,j)=>j===ri?{...r,desde:e.target.value}:r)}:t)}))}
+                            style={{...S.inp, flex:1}}/>
+                          <span style={{color:C.muted,flexShrink:0}}>→</span>
+                          <input placeholder="Hasta MM-DD" value={rango.hasta}
+                            onChange={e=>setForm(f=>({...f,tarifas:f.tarifas.map((t,i)=>i===ti?{...t,rangos:t.rangos.map((r,j)=>j===ri?{...r,hasta:e.target.value}:r)}:t)}))}
+                            style={{...S.inp, flex:1}}/>
+                          {temp.rangos.length > 1 && (
+                            <button onClick={()=>setForm(f=>({...f,tarifas:f.tarifas.map((t,i)=>i===ti?{...t,rangos:t.rangos.filter((_,j)=>j!==ri)}:t)}))}
+                              style={{background:"none",border:"none",color:C.red,cursor:"pointer",fontSize:"1rem",flexShrink:0}}>✕</button>
+                          )}
+                        </div>
+                      ))}
+                      <button onClick={()=>setForm(f=>({...f,tarifas:f.tarifas.map((t,i)=>i===ti?{...t,rangos:[...t.rangos,{desde:"",hasta:""}]}:t)}))}
+                        style={{...S.btnSm("rgba(255,255,255,0.06)",C.border), marginTop:4}}>
+                        + Agregar rango de fechas
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <p style={{ fontSize:"0.72rem", color:C.muted, marginTop:4, lineHeight:1.6 }}>
+                  Los precios son orientativos. Al consultar por WhatsApp podemos ajustar según condiciones específicas.
+                </p>
               </Seccion>
 
               {/* ── Fotos ── */}
