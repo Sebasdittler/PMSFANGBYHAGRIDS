@@ -171,8 +171,9 @@ export default function SitioWeb() {
     fd.append("file", file);
     fd.append("upload_preset", CLD_PRESET);
     const res = await fetch(`https://api.cloudinary.com/v1_1/${CLD_CLOUD}/image/upload`, { method:"POST", body:fd });
-    if (!res.ok) throw new Error("Error al subir");
-    return (await res.json()).secure_url;
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error?.message || "Error al subir");
+    return data.secure_url;
   }
   async function agregarFotosHero(files) {
     if (!files?.length) return;
@@ -218,8 +219,8 @@ export default function SitioWeb() {
     const res = await fetch(`https://api.cloudinary.com/v1_1/${CLD_CLOUD}/image/upload`, {
       method: "POST", body: fd,
     });
-    if (!res.ok) throw new Error("Error al subir a Cloudinary");
     const data = await res.json();
+    if (!res.ok) throw new Error(data?.error?.message || "Error al subir a Cloudinary");
     return data.secure_url;
   }
 
@@ -242,6 +243,13 @@ export default function SitioWeb() {
 
   function eliminarFoto(idx) {
     setForm(f => ({ ...f, fotos: f.fotos.filter((_,i) => i!==idx) }));
+  }
+  function setPortada(idx) {
+    setForm(f => {
+      const fotos = [...f.fotos];
+      const [portada] = fotos.splice(idx, 1);
+      return { ...f, fotos: [portada, ...fotos] };
+    });
   }
 
   // ── Guardar ──────────────────────────────────────────────
@@ -601,9 +609,12 @@ export default function SitioWeb() {
                 {form.fotos?.length > 0 && (
                   <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:"1rem" }}>
                     {form.fotos.map((url, i) => (
-                      <div key={i} style={{ position:"relative", width:90, height:68 }}>
+                      <div key={i} style={{ position:"relative", width:110, height:80 }}>
                         <img src={url} alt={`Foto ${i+1}`} style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:8, display:"block", border: i===0 ? `2px solid ${C.green}` : `1px solid ${C.border}` }}/>
-                        {i===0 && <div style={{ position:"absolute", top:3, left:3, background:"rgba(82,183,136,0.9)", color:"#fff", fontSize:"0.58rem", padding:"1px 5px", borderRadius:4, fontWeight:700 }}>PORTADA</div>}
+                        {i===0
+                          ? <div style={{ position:"absolute", top:3, left:3, background:"rgba(82,183,136,0.9)", color:"#fff", fontSize:"0.55rem", padding:"1px 5px", borderRadius:4, fontWeight:700 }}>PORTADA</div>
+                          : <button onClick={() => setPortada(i)} title="Usar como portada" style={{ position:"absolute", top:3, left:3, background:"rgba(0,0,0,0.55)", border:"none", color:"#fff", fontSize:"0.55rem", padding:"2px 5px", borderRadius:4, cursor:"pointer", fontWeight:600 }}>⭐ portada</button>
+                        }
                         <button onClick={() => eliminarFoto(i)} style={{ position:"absolute", top:-5, right:-5, width:18, height:18, borderRadius:"50%", background:"#e05252", border:"none", color:"#fff", fontSize:"0.7rem", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1 }}>✕</button>
                       </div>
                     ))}
@@ -631,7 +642,7 @@ export default function SitioWeb() {
                     <div style={{ marginTop:8, fontSize:"0.8rem", color:C.green }}>{uploadMsg}</div>
                   )}
                 </div>
-                <p style={{ fontSize:"0.72rem", color:C.muted, marginTop:6 }}>La primera foto es la portada. Podés reordenarlas eliminándolas y subiéndolas en el orden deseado.</p>
+                <p style={{ fontSize:"0.72rem", color:C.muted, marginTop:6 }}>Hacé clic en <strong style={{color:C.muted}}>⭐ portada</strong> en cualquier foto para usarla como imagen principal.</p>
               </Seccion>
 
               {/* ── Comodidades ── */}
