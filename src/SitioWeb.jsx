@@ -167,8 +167,9 @@ export default function SitioWeb() {
 
   // ── Hero photos ─────────────────────────────────────────
   async function subirFotoHero(file) {
+    const blob = await comprimirImagen(file);
     const fd = new FormData();
-    fd.append("file", file);
+    fd.append("file", blob, file.name.replace(/\.[^.]+$/, '.jpg'));
     fd.append("upload_preset", CLD_PRESET);
     const res = await fetch(`https://api.cloudinary.com/v1_1/${CLD_CLOUD}/image/upload`, { method:"POST", body:fd });
     const data = await res.json();
@@ -211,10 +212,30 @@ export default function SitioWeb() {
     }
   }
 
+  // ── Comprimir imagen antes de subir ─────────────────────
+  async function comprimirImagen(file, maxW=1920, quality=0.85) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(blob => resolve(blob || file), 'image/jpeg', quality);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+      img.src = url;
+    });
+  }
+
   // ── Subir una foto a Cloudinary ──────────────────────────
   async function subirFoto(file) {
+    const blob = await comprimirImagen(file);
     const fd = new FormData();
-    fd.append("file", file);
+    fd.append("file", blob, file.name.replace(/\.[^.]+$/, '.jpg'));
     fd.append("upload_preset", CLD_PRESET);
     const res = await fetch(`https://api.cloudinary.com/v1_1/${CLD_CLOUD}/image/upload`, {
       method: "POST", body: fd,
