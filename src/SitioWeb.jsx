@@ -162,6 +162,7 @@ const WEB_VACIO = {
   nombreWeb: "", descripcion: "", tipo: "Cabaña",
   capacidad: "", camas: "", banos: "",
   precio: "", moneda: "USD",
+  sitioUrl: "",
   amenities: [], fotos: [], fotoUrl: "",
   mostrarEnWeb: false, orden: 99,
   tarifas: [
@@ -424,6 +425,7 @@ export default function SitioWeb() {
         tarifas:     form.tarifas || [],
         fotos:       form.fotos || [],
         fotoUrl:     form.fotos?.[0] || form.fotoUrl || "",
+        sitioUrl:    form.sitioUrl?.trim() || "",
         mostrarEnWeb: Boolean(form.mostrarEnWeb),
         orden:       Number(form.orden) || 99,
         updatedAt:   window.firebase.firestore.FieldValue.serverTimestamp(),
@@ -684,6 +686,27 @@ export default function SitioWeb() {
                     {MONEDAS.map(m=><option key={m} style={{background:C.surface2,color:C.text}}>{m}</option>)}
                   </select>
                 </div>
+              </Seccion>
+
+              {/* ── Link externo ── */}
+              <Seccion titulo="Más información (opcional)">
+                <p style={{ fontSize:"0.75rem", color:C.muted, marginBottom:"0.8rem", lineHeight:1.6 }}>
+                  Si tenés una página de Google Sites u otro sitio con más fotos y detalles de la propiedad, pegá el link acá. Va a aparecer como un botón <strong style={{color:C.text}}>Más información</strong> en la card de la web.
+                </p>
+                <label style={S.label}>URL del sitio</label>
+                <input
+                  type="url"
+                  placeholder="https://sites.google.com/view/tu-propiedad"
+                  value={form.sitioUrl || ""}
+                  onChange={e=>setForm(f=>({...f, sitioUrl: e.target.value}))}
+                  style={S.inp}
+                />
+                {form.sitioUrl?.trim() && (
+                  <a href={form.sitioUrl} target="_blank" rel="noreferrer"
+                    style={{ display:"inline-block", marginTop:8, fontSize:"0.75rem", color:C.green, textDecoration:"none" }}>
+                    ↗ Abrir link para verificar
+                  </a>
+                )}
               </Seccion>
 
               {/* ── Tarifas ── */}
