@@ -39,7 +39,8 @@ function parseMmDd(s) {
 }
 
 function buildMmDd(m, d) {
-  if (!m || !d) return "";
+  if (!m) return "";
+  if (!d) return String(m).padStart(2,"0") + "-"; // parcial: mes seleccionado, día pendiente
   return String(m).padStart(2,"0") + "-" + String(d).padStart(2,"0");
 }
 
