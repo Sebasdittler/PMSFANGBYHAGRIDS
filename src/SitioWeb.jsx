@@ -26,6 +26,137 @@ const TEMP_VACIA = (nombre, color) => ({
   precioBase: "", huespedes: "", extraPorHuesped: "", minimoNoches: "",
 });
 
+// ── Helpers de fechas ────────────────────────────────────────
+const MESES_NOM   = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const MESES_SHORT = ["01","02","03","04","05","06","07","08","09","10","11","12"];
+const DIAS_MES_MAX = [31,29,31,30,31,30,31,31,30,31,30,31];
+
+function parseMmDd(s) {
+  if (!s) return { m: "", d: "" };
+  const parts = s.split("-");
+  if (parts.length === 2) return { m: parts[0] || "", d: parts[1] || "" };
+  return { m: "", d: "" };
+}
+
+function buildMmDd(m, d) {
+  if (!m || !d) return "";
+  return String(m).padStart(2,"0") + "-" + String(d).padStart(2,"0");
+}
+
+// ── Timeline anual ────────────────────────────────────────────
+const DIAS_MES_NORM = [31,28,31,30,31,30,31,31,30,31,30,31];
+const MES_LABELS = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+
+function mmddToIdx(mmdd) {
+  if (!mmdd) return -1;
+  const parts = mmdd.split("-");
+  if (parts.length !== 2) return -1;
+  const mm = parseInt(parts[0]), dd = parseInt(parts[1]);
+  if (!mm || !dd || mm < 1 || mm > 12) return -1;
+  let idx = 0;
+  for (let i = 0; i < mm - 1; i++) idx += DIAS_MES_NORM[i];
+  return idx + dd - 1;
+}
+
+function isInRangeIdx(dayIdx, desde, hasta) {
+  const d = mmddToIdx(desde), h = mmddToIdx(hasta);
+  if (d < 0 || h < 0) return false;
+  if (d <= h) return dayIdx >= d && dayIdx <= h;
+  return dayIdx >= d || dayIdx <= h; // rango que cruza año
+}
+
+function TimelineAnual({ tarifas }) {
+  const TOTAL = 365;
+  const coverage = new Array(TOTAL).fill(null);
+  const overlaps = new Array(TOTAL).fill(false);
+
+  for (let i = 0; i < TOTAL; i++) {
+    let count = 0, first = null;
+    for (const t of tarifas) {
+      for (const r of (t.rangos || [])) {
+        if (isInRangeIdx(i, r.desde, r.hasta)) {
+          if (!first) first = t;
+          count++;
+        }
+      }
+    }
+    coverage[i] = first;
+    if (count > 1) overlaps[i] = true;
+  }
+
+  // Agrupar segmentos consecutivos iguales
+  const segments = [];
+  let i = 0;
+  while (i < TOTAL) {
+    const t = coverage[i], ol = overlaps[i];
+    let j = i + 1;
+    while (j < TOTAL && coverage[j] === t && overlaps[j] === ol) j++;
+    segments.push({ temp: t, overlap: ol, count: j - i });
+    i = j;
+  }
+
+  const sinCubrir = coverage.filter(c => !c).length;
+  const solapados = overlaps.filter(Boolean).length;
+  const hayDatos  = tarifas.some(t => t.rangos?.some(r => r.desde && r.hasta));
+
+  if (!hayDatos) return null;
+
+  return (
+    <div style={{ marginTop:"1.2rem", marginBottom:"0.4rem" }}>
+      <div style={{ fontSize:"0.68rem", fontWeight:700, color:C.muted, letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:6 }}>
+        Vista anual
+      </div>
+      {/* Etiquetas de meses */}
+      <div style={{ display:"flex", marginBottom:2 }}>
+        {DIAS_MES_NORM.map((d,i) => (
+          <div key={i} style={{ flex:d, textAlign:"center", fontSize:"0.58rem", color:C.muted }}>
+            {MES_LABELS[i]}
+          </div>
+        ))}
+      </div>
+      {/* Barra */}
+      <div style={{ display:"flex", height:22, borderRadius:6, overflow:"hidden", border:`1px solid ${C.border}` }}>
+        {segments.map((seg, i) => (
+          <div key={i}
+            title={seg.overlap ? "⚠ Solapamiento" : (seg.temp ? seg.temp.nombre : "Sin cobertura")}
+            style={{
+              flex: seg.count,
+              background: seg.overlap ? "#e05252" : (seg.temp ? seg.temp.color : "rgba(255,255,255,0.07)"),
+              opacity: seg.overlap ? 1 : (seg.temp ? 0.82 : 1),
+            }}
+          />
+        ))}
+      </div>
+      {/* Leyenda */}
+      <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginTop:7, alignItems:"center" }}>
+        {tarifas.map((t,i) => (
+          <div key={i} style={{ display:"flex", alignItems:"center", gap:4 }}>
+            <div style={{ width:10, height:10, borderRadius:2, background:t.color, opacity:0.82 }}/>
+            <span style={{ fontSize:"0.65rem", color:C.muted }}>{t.nombre}</span>
+          </div>
+        ))}
+        {sinCubrir > 0 && (
+          <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+            <div style={{ width:10, height:10, borderRadius:2, background:"rgba(255,255,255,0.1)", border:`1px solid ${C.border}` }}/>
+            <span style={{ fontSize:"0.65rem", color:C.muted }}>Sin cobertura</span>
+          </div>
+        )}
+      </div>
+      {/* Alertas */}
+      {solapados > 0 && (
+        <div style={{ marginTop:8, padding:"0.45rem 0.8rem", background:"rgba(224,82,82,0.13)", border:"1px solid rgba(224,82,82,0.4)", borderRadius:6, fontSize:"0.74rem", color:"#e05252" }}>
+          ⚠ {solapados} día{solapados>1?"s":""} se solapan entre temporadas — revisá los rangos.
+        </div>
+      )}
+      {sinCubrir > 0 && sinCubrir < TOTAL && (
+        <div style={{ marginTop:6, padding:"0.45rem 0.8rem", background:`rgba(224,159,62,0.12)`, border:`1px solid rgba(224,159,62,0.35)`, borderRadius:6, fontSize:"0.74rem", color:C.amber }}>
+          ⚠ {sinCubrir} día{sinCubrir>1?"s":""} sin temporada asignada — el cotizador no podrá calcular precio para esas fechas.
+        </div>
+      )}
+    </div>
+  );
+}
+
 const WEB_VACIO = {
   nombreWeb: "", descripcion: "", tipo: "Cabaña",
   capacidad: "", camas: "", banos: "",
@@ -557,7 +688,7 @@ export default function SitioWeb() {
               {/* ── Tarifas ── */}
               <Seccion titulo="Tarifas por temporada">
                 <p style={{ fontSize:"0.75rem", color:C.muted, marginBottom:"1rem", lineHeight:1.6 }}>
-                  Configurá precio, huéspedes incluidos, cargo extra y mínimo de noches por temporada. Las fechas usá formato MM-DD (ej: 12-15 para 15 de diciembre). Podés agregar varios rangos por temporada.
+                  Configurá precio, huéspedes incluidos, cargo extra y mínimo de noches. Para las fechas elegí mes y día con los selectores. Podés agregar varios rangos por temporada (útil si una temporada tiene dos períodos separados en el año).
                 </p>
                 {form.tarifas.map((temp, ti) => (
                   <div key={ti} style={{ border:`1px solid ${C.border}`, borderRadius:10, marginBottom:"1rem", overflow:"hidden" }}>
@@ -597,21 +728,77 @@ export default function SitioWeb() {
                       </div>
                       {/* Rangos de fechas */}
                       <div style={{ fontSize:"0.68rem", fontWeight:700, color:C.muted, letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:8 }}>Fechas</div>
-                      {temp.rangos.map((rango, ri) => (
-                        <div key={ri} style={{ display:"flex", gap:8, alignItems:"center", marginBottom:6 }}>
-                          <input placeholder="Desde MM-DD" value={rango.desde}
-                            onChange={e=>setForm(f=>({...f,tarifas:f.tarifas.map((t,i)=>i===ti?{...t,rangos:t.rangos.map((r,j)=>j===ri?{...r,desde:e.target.value}:r)}:t)}))}
-                            style={{...S.inp, flex:1}}/>
-                          <span style={{color:C.muted,flexShrink:0}}>→</span>
-                          <input placeholder="Hasta MM-DD" value={rango.hasta}
-                            onChange={e=>setForm(f=>({...f,tarifas:f.tarifas.map((t,i)=>i===ti?{...t,rangos:t.rangos.map((r,j)=>j===ri?{...r,hasta:e.target.value}:r)}:t)}))}
-                            style={{...S.inp, flex:1}}/>
-                          {temp.rangos.length > 1 && (
-                            <button onClick={()=>setForm(f=>({...f,tarifas:f.tarifas.map((t,i)=>i===ti?{...t,rangos:t.rangos.filter((_,j)=>j!==ri)}:t)}))}
-                              style={{background:"none",border:"none",color:C.red,cursor:"pointer",fontSize:"1rem",flexShrink:0}}>✕</button>
-                          )}
-                        </div>
-                      ))}
+                      {temp.rangos.map((rango, ri) => {
+                        const desdeP = parseMmDd(rango.desde);
+                        const hastaP = parseMmDd(rango.hasta);
+                        const maxDias = (m) => m ? DIAS_MES_MAX[parseInt(m)-1] : 31;
+                        const selSt = { ...S.inp, flex:1, minWidth:0, padding:"8px 6px", fontSize:"0.83rem" };
+                        const updRango = (field, val) => setForm(f=>({...f, tarifas:f.tarifas.map((t,i)=>i!==ti?t:{...t, rangos:t.rangos.map((r,j)=>j!==ri?r:{...r,[field]:val})})}));
+                        return (
+                          <div key={ri} style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${C.border2}`, borderRadius:8, padding:"0.7rem 0.8rem", marginBottom:8 }}>
+                            <div style={{ display:"grid", gridTemplateColumns:"1fr 28px 1fr auto", gap:6, alignItems:"end" }}>
+                              {/* DESDE */}
+                              <div>
+                                <div style={{ fontSize:"0.62rem", color:C.muted, fontWeight:700, marginBottom:5, letterSpacing:"0.06em", textTransform:"uppercase" }}>Desde</div>
+                                <div style={{ display:"flex", gap:4 }}>
+                                  <select value={desdeP.m}
+                                    onChange={e=>{ const m=e.target.value; updRango("desde", buildMmDd(m, desdeP.d)); }}
+                                    style={selSt}>
+                                    <option value="">Mes</option>
+                                    {MESES_NOM.map((n,idx)=><option key={idx} value={MESES_SHORT[idx]} style={{background:C.surface2}}>{n}</option>)}
+                                  </select>
+                                  <select value={desdeP.d}
+                                    onChange={e=>updRango("desde", buildMmDd(desdeP.m, e.target.value))}
+                                    disabled={!desdeP.m}
+                                    style={{...selSt, opacity:desdeP.m?1:0.4}}>
+                                    <option value="">Día</option>
+                                    {Array.from({length:maxDias(desdeP.m)},(_,k)=>String(k+1).padStart(2,"0")).map(d=><option key={d} value={d} style={{background:C.surface2}}>{d}</option>)}
+                                  </select>
+                                </div>
+                              </div>
+                              {/* FLECHA */}
+                              <div style={{ color:C.muted, textAlign:"center", paddingBottom:8 }}>→</div>
+                              {/* HASTA */}
+                              <div>
+                                <div style={{ fontSize:"0.62rem", color:C.muted, fontWeight:700, marginBottom:5, letterSpacing:"0.06em", textTransform:"uppercase" }}>Hasta</div>
+                                <div style={{ display:"flex", gap:4 }}>
+                                  <select value={hastaP.m}
+                                    onChange={e=>{ const m=e.target.value; updRango("hasta", buildMmDd(m, hastaP.d)); }}
+                                    style={selSt}>
+                                    <option value="">Mes</option>
+                                    {MESES_NOM.map((n,idx)=><option key={idx} value={MESES_SHORT[idx]} style={{background:C.surface2}}>{n}</option>)}
+                                  </select>
+                                  <select value={hastaP.d}
+                                    onChange={e=>updRango("hasta", buildMmDd(hastaP.m, e.target.value))}
+                                    disabled={!hastaP.m}
+                                    style={{...selSt, opacity:hastaP.m?1:0.4}}>
+                                    <option value="">Día</option>
+                                    {Array.from({length:maxDias(hastaP.m)},(_,k)=>String(k+1).padStart(2,"0")).map(d=><option key={d} value={d} style={{background:C.surface2}}>{d}</option>)}
+                                  </select>
+                                </div>
+                              </div>
+                              {/* BORRAR */}
+                              <div style={{ paddingBottom:4 }}>
+                                {temp.rangos.length > 1
+                                  ? <button onClick={()=>setForm(f=>({...f,tarifas:f.tarifas.map((t,i)=>i===ti?{...t,rangos:t.rangos.filter((_,j)=>j!==ri)}:t)}))}
+                                      style={{background:"none",border:"none",color:C.red,cursor:"pointer",fontSize:"1rem"}}>✕</button>
+                                  : <span style={{width:20,display:"inline-block"}}/>
+                                }
+                              </div>
+                            </div>
+                            {/* Resumen texto del rango */}
+                            {rango.desde && rango.hasta && (
+                              <div style={{ marginTop:6, fontSize:"0.7rem", color:C.muted, fontStyle:"italic" }}>
+                                {(() => {
+                                  const dp=parseMmDd(rango.desde), hp=parseMmDd(rango.hasta);
+                                  const mn=n=>MESES_NOM[parseInt(n)-1]||n;
+                                  return `${dp.d} de ${mn(dp.m)} → ${hp.d} de ${mn(hp.m)}`;
+                                })()}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                       <button onClick={()=>setForm(f=>({...f,tarifas:f.tarifas.map((t,i)=>i===ti?{...t,rangos:[...t.rangos,{desde:"",hasta:""}]}:t)}))}
                         style={{...S.btnSm("rgba(255,255,255,0.06)",C.border), marginTop:4}}>
                         + Agregar rango de fechas
@@ -619,6 +806,8 @@ export default function SitioWeb() {
                     </div>
                   </div>
                 ))}
+                {/* Timeline visual */}
+                <TimelineAnual tarifas={form.tarifas} />
                 <p style={{ fontSize:"0.72rem", color:C.muted, marginTop:4, lineHeight:1.6 }}>
                   Los precios son orientativos. Al consultar por WhatsApp podemos ajustar según condiciones específicas.
                 </p>
