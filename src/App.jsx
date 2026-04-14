@@ -1129,11 +1129,12 @@ function App() {
   ───────────────────────────────────────────────────── */
   const addLaundry = () => {
     if(!canWrite()) return;
+    const lavIdToSave = lavaderos.find(l=>l.id===lavF.lavId)?.id || lavaderos[0]?.id || lavF.lavId;
     const entry = {
       id: uid(),
       ownerId: CURRENT_USER.id,
       rid: lavF.isManual ? null : lavF.rid,
-      lavId: lavF.lavId,
+      lavId: lavIdToSave,
       date: lavF.date,
       status: "en_lavadero",
       isManual: lavF.isManual || false,
@@ -2802,7 +2803,7 @@ function App() {
     return (
       <div>
         <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
-          {canWrite() && <button className="fang-btn" style={C.btn()} onClick={()=>setShowLM(true)}>+ Nuevo envío</button>}
+          {canWrite() && <button className="fang-btn" style={C.btn()} onClick={()=>{setLavF({rid:res.find(r=>r.co>=TODAY)?.id||"r1",lavId:lavaderos[0]?.id||"lav1",date:"",...emptyItems(),isManual:false,guestManual:"",pidManual:allowedProps[0]?.id||"p1"});setShowLM(true);}}>+ Nuevo envío</button>}
           {canWrite() && <button className="fang-btn" style={C.btn("o")} onClick={openNewLavadero}>+ Lavadero</button>}
           <div style={{marginLeft:"auto",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
             <select style={{...C.sel,marginBottom:0,width:"auto"}} value={lavRepId} onChange={e=>setLavRepId(e.target.value)}>{lavaderos.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}</select>
@@ -5728,6 +5729,7 @@ function App() {
     const ridEfectivo = (!lavF.isManual && activeRes.length>0 && !activeRes.find(r=>r.id===lavF.rid))
       ? activeRes[0].id
       : lavF.rid;
+    const lavIdEfectivo = lavaderos.find(l=>l.id===lavF.lavId)?.id || lavaderos[0]?.id || lavF.lavId;
     const canSave = lavF.date && lavF.lavId && (lavF.isManual ? !!lavF.pidManual : activeRes.length>0);
     return (
     <div className="fang-overlay" style={C.ov} onClick={e=>e.target===e.currentTarget&&confirmClose(!!(lavF.date||LAUNDRY_ITEMS.some(i=>(+lavF[i.key]||0)>0)),()=>setShowLM(false))}>
@@ -5781,7 +5783,7 @@ function App() {
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
           <div>
             <label style={C.lbl}>Lavadero</label>
-            <select style={C.sel} value={lavF.lavId} onChange={e=>setLavF(f=>({...f,lavId:e.target.value}))}>
+            <select style={C.sel} value={lavIdEfectivo} onChange={e=>setLavF(f=>({...f,lavId:e.target.value}))}>
               {lavaderos.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
           </div>
@@ -5796,7 +5798,7 @@ function App() {
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
             {LAUNDRY_ITEMS.map(item=>{
               const opts=Array.from({length:item.max+1},(_,i)=>i);
-              const pricesToShow=getLavPrices(lavF.lavId);
+              const pricesToShow=getLavPrices(lavIdEfectivo);
               return <div key={item.key}>
                 <label style={C.lbl}>{item.label} <span style={{color:"#4A7A9B",fontWeight:700}}>{$$(pricesToShow[item.key]||0)}/u</span></label>
                 <select style={{...C.sel,marginBottom:8}} value={lavF[item.key]||0} onChange={e=>setLavF(f=>({...f,[item.key]:+e.target.value}))}>
@@ -5806,7 +5808,7 @@ function App() {
             })}
           </div>
           <div style={{fontSize:13,fontWeight:700,color:"#4A7A9B",textAlign:"right",marginTop:4}}>
-            Subtotal estimado: {$$(LAUNDRY_ITEMS.reduce((s,i)=>s+(lavF[i.key]||0)*(getLavPrices(lavF.lavId)[i.key]||0),0))}
+            Subtotal estimado: {$$(LAUNDRY_ITEMS.reduce((s,i)=>s+(lavF[i.key]||0)*(getLavPrices(lavIdEfectivo)[i.key]||0),0))}
           </div>
         </div>
         <div style={{display:"flex",gap:10,marginTop:8}}>
