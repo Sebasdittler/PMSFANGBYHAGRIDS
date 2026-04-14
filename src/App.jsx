@@ -6611,7 +6611,7 @@ function App() {
       {editLaundryId&&(()=>{
         const l=laundry.find(x=>x.id===editLaundryId);
         const info2 = l ? lavInfo(l) : {guest:"—",prop:{color:"#ccc",name:"—"}};
-        const subtotal=LAUNDRY_ITEMS.reduce((s,i)=>s+(+lavF[i.key]||0)*(lavPrices[i.key]||0),0);
+        const subtotal=LAUNDRY_ITEMS.reduce((s,i)=>s+(+lavF[i.key]||0)*(getLavPrices(lavF.lavId)[i.key]||0),0);
         return (
           <div className="fang-overlay" style={C.ov} onClick={e=>e.target===e.currentTarget&&setEditLaundryId(null)}>
             <div className="fang-modal" style={{...C.mod,maxWidth:480}}>
@@ -6641,7 +6641,7 @@ function App() {
                       <div key={item.key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:qty>0?"#eff6ff":T.bgInput,borderRadius:8,padding:"8px 12px",border:qty>0?`1.5px solid #92BEE0`:`1.5px solid transparent`}}>
                         <label style={{fontSize:12,color:qty>0?"#1e40af":T.textSub,fontWeight:qty>0?700:400,cursor:"pointer",flex:1}}>
                           {item.label}
-                          <div style={{fontSize:11,color:T.textMut,fontWeight:400}}>{$$(lavPrices[item.key]||0)}/u</div>
+                          <div style={{fontSize:11,color:T.textMut,fontWeight:400}}>{$$(getLavPrices(lavF.lavId)[item.key]||0)}/u</div>
                         </label>
                         <div style={{display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
                           <button onClick={()=>setLavF(f=>({...f,[item.key]:Math.max(0,(+f[item.key]||0)-1)}))} style={{width:22,height:22,borderRadius:8,border:`1.5px solid ${T.border}`,background:"#fff",cursor:"pointer",fontSize:14,lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>−</button>
