@@ -249,6 +249,9 @@ export default function SitioWeb() {
   const [uploadHero,   setUploadHero]   = useState("");
   const [uploadingHero,setUploadingHero]= useState(false);
   const fileHeroRef = useRef(null);
+  // Hero video
+  const [videoHero,    setVideoHero]    = useState("");
+  const [savingVideo,  setSavingVideo]  = useState(false);
 
   // ── Suscripciones Firestore ──────────────────────────────
   useEffect(() => {
@@ -262,10 +265,13 @@ export default function SitioWeb() {
         setWebData(map);
         setLoading(false);
       }, () => setLoading(false));
-    // Hero photos
+    // Hero photos + video
     const unsubHero = window._db.collection("sitioWeb_config").doc("general")
       .onSnapshot(snap => {
-        if (snap.exists) setFotosHero(snap.data().fotosHero || []);
+        if (snap.exists) {
+          setFotosHero(snap.data().fotosHero || []);
+          setVideoHero(snap.data().videoHero || "");
+        }
       }, () => {});
     return () => { unsubFang(); unsubWeb(); unsubHero(); };
   }, []);
@@ -297,6 +303,16 @@ export default function SitioWeb() {
     setUploadMsg(""); setModal(fangProp);
   }
   function cerrar() { setModal(null); setSaving(false); setUploadMsg(""); }
+
+  async function guardarVideoHero() {
+    if (!window._db) return;
+    setSavingVideo(true);
+    try {
+      await window._db.collection("sitioWeb_config").doc("general")
+        .set({ videoHero: videoHero.trim() }, { merge: true });
+    } catch(e) { alert("Error al guardar: " + e.message); }
+    finally { setSavingVideo(false); }
+  }
 
   // ── Hero photos ─────────────────────────────────────────
   async function subirFotoHero(file) {
@@ -481,36 +497,82 @@ export default function SitioWeb() {
         </a>
       </div>
 
-      {/* ── Fotos del hero (portada) ── */}
+      {/* ── Hero: portada del sitio ── */}
       <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"1.2rem 1.4rem", marginBottom:"1.5rem" }}>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1rem", flexWrap:"wrap", gap:8 }}>
-          <div>
-            <div style={{ fontWeight:700, fontSize:"0.9rem", color:C.text }}>Fotos de portada del sitio</div>
-            <div style={{ fontSize:"0.75rem", color:C.muted, marginTop:2 }}>Estas fotos rotan en el slideshow del inicio. Mínimo 1, recomendado 4-5.</div>
-          </div>
-          <button onClick={guardarFotosHero} disabled={savingHero} style={S.btnPrimary}>
-            {savingHero ? "Guardando…" : "Guardar fotos"}
-          </button>
+        <div style={{ fontWeight:700, fontSize:"0.9rem", color:C.text, marginBottom:4 }}>Portada del sitio</div>
+        <div style={{ fontSize:"0.75rem", color:C.muted, marginBottom:"1.2rem", lineHeight:1.6 }}>
+          Podés usar <strong style={{color:C.text}}>fotos</strong> en slideshow o un <strong style={{color:C.text}}>video en loop</strong>. Si cargás un video, tiene prioridad sobre las fotos.
         </div>
-        {fotosHero.length > 0 && (
-          <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:"0.9rem" }}>
-            {fotosHero.map((url,i) => (
-              <div key={i} style={{ position:"relative", width:100, height:70 }}>
-                <img src={url} alt={`Hero ${i+1}`} style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:8, display:"block", border:`1px solid ${C.border}` }}/>
-                {i===0 && <div style={{ position:"absolute", top:3, left:3, background:"rgba(82,183,136,0.9)", color:"#fff", fontSize:"0.55rem", padding:"1px 5px", borderRadius:4, fontWeight:700 }}>1ERA</div>}
-                <button onClick={()=>eliminarFotoHero(i)} style={{ position:"absolute", top:-5, right:-5, width:18, height:18, borderRadius:"50%", background:"#e05252", border:"none", color:"#fff", fontSize:"0.7rem", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
-              </div>
-            ))}
+
+        {/* Video hero */}
+        <div style={{ marginBottom:"1.2rem", padding:"1rem", background:"rgba(255,255,255,0.03)", border:`1px solid ${C.border}`, borderRadius:10 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"0.8rem", flexWrap:"wrap", gap:8 }}>
+            <div>
+              <div style={{ fontWeight:700, fontSize:"0.82rem", color:C.text }}>🎬 Video del hero <span style={{ fontWeight:400, color:C.muted }}>(opcional)</span></div>
+              <div style={{ fontSize:"0.72rem", color:C.muted, marginTop:2 }}>Pegá la URL del video de Cloudinary. Recomendado: MP4, menos de 8MB, 10-15 seg en loop.</div>
+            </div>
+            <button onClick={guardarVideoHero} disabled={savingVideo} style={S.btnPrimary}>
+              {savingVideo ? "Guardando…" : "Guardar video"}
+            </button>
           </div>
-        )}
-        <div style={{ background:"rgba(255,255,255,0.03)", border:`1px dashed ${C.border}`, borderRadius:8, padding:"0.8rem", textAlign:"center" }}>
-          <input ref={fileHeroRef} type="file" accept="image/*" multiple onChange={e=>agregarFotosHero(e.target.files)} style={{ display:"none" }} id="hero-upload"/>
-          <label htmlFor="hero-upload" style={{ cursor:"pointer", display:"inline-flex", flexDirection:"column", alignItems:"center", gap:5 }}>
-            <span style={{ fontSize:"1.3rem" }}>🖼️</span>
-            <span style={{ fontSize:"0.82rem", color:C.green, fontWeight:600 }}>{uploadingHero ? uploadHero : "Subir fotos de portada"}</span>
-            <span style={{ fontSize:"0.7rem", color:C.muted }}>JPG o PNG · podés seleccionar varias</span>
-          </label>
-          {uploadHero && !uploadingHero && <div style={{ marginTop:6, fontSize:"0.78rem", color:C.green }}>{uploadHero}</div>}
+          <input
+            type="url"
+            value={videoHero}
+            onChange={e => setVideoHero(e.target.value)}
+            placeholder="https://res.cloudinary.com/dpedzxviy/video/upload/q_auto/nombre-del-video.mp4"
+            style={S.inp}
+          />
+          {videoHero.trim() && (
+            <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+              <span style={{ fontSize:"0.72rem", background:"rgba(82,183,136,0.15)", color:C.green, border:`1px solid ${C.greenBrd}`, borderRadius:6, padding:"3px 10px" }}>
+                ✓ Video activo — se muestra en lugar del slideshow
+              </span>
+              <button
+                onClick={() => setVideoHero("")}
+                style={{ background:"none", border:"none", color:C.red, fontSize:"0.75rem", cursor:"pointer", textDecoration:"underline" }}
+              >
+                Quitar video → volver a fotos
+              </button>
+            </div>
+          )}
+          {!videoHero.trim() && (
+            <div style={{ marginTop:8, fontSize:"0.72rem", color:C.muted, fontStyle:"italic" }}>
+              Sin video cargado — se muestra el slideshow de fotos.
+            </div>
+          )}
+        </div>
+
+        {/* Fotos hero */}
+        <div>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"0.8rem", flexWrap:"wrap", gap:8 }}>
+            <div>
+              <div style={{ fontWeight:700, fontSize:"0.82rem", color:C.text }}>🖼️ Fotos del slideshow</div>
+              <div style={{ fontSize:"0.72rem", color:C.muted, marginTop:2 }}>Mínimo 1, recomendado 4-5. La primera también se usa como poster del video.</div>
+            </div>
+            <button onClick={guardarFotosHero} disabled={savingHero} style={S.btnPrimary}>
+              {savingHero ? "Guardando…" : "Guardar fotos"}
+            </button>
+          </div>
+          {fotosHero.length > 0 && (
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:"0.9rem" }}>
+              {fotosHero.map((url,i) => (
+                <div key={i} style={{ position:"relative", width:100, height:70 }}>
+                  <img src={url} alt={`Hero ${i+1}`} style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:8, display:"block", border:`1px solid ${C.border}` }}/>
+                  {i===0 && <div style={{ position:"absolute", top:3, left:3, background:"rgba(82,183,136,0.9)", color:"#fff", fontSize:"0.55rem", padding:"1px 5px", borderRadius:4, fontWeight:700 }}>1ERA</div>}
+                  <button onClick={()=>eliminarFotoHero(i)} style={{ position:"absolute", top:-5, right:-5, width:18, height:18, borderRadius:"50%", background:"#e05252", border:"none", color:"#fff", fontSize:"0.7rem", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ background:"rgba(255,255,255,0.03)", border:`1px dashed ${C.border}`, borderRadius:8, padding:"0.8rem", textAlign:"center" }}>
+            <input ref={fileHeroRef} type="file" accept="image/*" multiple onChange={e=>agregarFotosHero(e.target.files)} style={{ display:"none" }} id="hero-upload"/>
+            <label htmlFor="hero-upload" style={{ cursor:"pointer", display:"inline-flex", flexDirection:"column", alignItems:"center", gap:5 }}>
+              <span style={{ fontSize:"1.3rem" }}>🖼️</span>
+              <span style={{ fontSize:"0.82rem", color:C.green, fontWeight:600 }}>{uploadingHero ? uploadHero : "Subir fotos de portada"}</span>
+              <span style={{ fontSize:"0.7rem", color:C.muted }}>JPG o PNG · podés seleccionar varias</span>
+            </label>
+            {uploadHero && !uploadingHero && <div style={{ marginTop:6, fontSize:"0.78rem", color:C.green }}>{uploadHero}</div>}
+          </div>
         </div>
       </div>
 
