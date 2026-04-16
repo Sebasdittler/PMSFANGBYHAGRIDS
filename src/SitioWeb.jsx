@@ -200,6 +200,7 @@ const TABS = [
   { id:"propiedades", label:"Propiedades", icon:"🏠" },
   { id:"portada",     label:"Portada",     icon:"🖼️" },
   { id:"partners",    label:"Partners",    icon:"🤝" },
+  { id:"actividades", label:"Actividades", icon:"🏔️" },
   { id:"nosotros",    label:"Nosotros",    icon:"👥" },
   { id:"faq",         label:"FAQ",         icon:"❓" },
   { id:"resenas",     label:"Reseñas",     icon:"⭐" },
@@ -230,6 +231,185 @@ function TabProximamente({ icon, titulo, descripcion }) {
       <div style={{ fontSize:"2.5rem", marginBottom:"1rem" }}>{icon}</div>
       <div style={{ fontWeight:700, fontSize:"1rem", color:C.text, marginBottom:"0.5rem" }}>{titulo}</div>
       <p style={{ fontSize:"0.85rem", lineHeight:1.7, maxWidth:400, margin:"0 auto" }}>{descripcion}</p>
+    </div>
+  );
+}
+
+// ── Tab Actividades ───────────────────────────────────────
+const ACT_VACIO = { titulo:"", icono:"", descripcion:"", fotos:[] };
+
+function TabActividades() {
+  const [lista,       setLista]       = useState([]);
+  const [saving,      setSaving]      = useState(false);
+  const [uploading,   setUploading]   = useState(false);
+  const [showForm,    setShowForm]    = useState(false);
+  const [editIdx,     setEditIdx]     = useState(null);
+  const [form,        setForm]        = useState(ACT_VACIO);
+  const fileRef = useRef(null);
+
+  useEffect(() => {
+    if (!window._db) return;
+    const unsub = window._db.collection("sitioWeb_config").doc("destinos")
+      .onSnapshot(snap => {
+        setLista(snap.exists ? (snap.data().lista || []) : []);
+      }, () => {});
+    return () => unsub();
+  }, []);
+
+  async function guardarLista(nuevaLista) {
+    if (!window._db) return;
+    setSaving(true);
+    try { await window._db.collection("sitioWeb_config").doc("destinos").set({ lista: nuevaLista }); }
+    catch(e) { alert("Error: "+e.message); }
+    finally { setSaving(false); }
+  }
+
+  async function subirFotos(files) {
+    if (!files?.length) return;
+    setUploading(true);
+    try {
+      const urls = await Promise.all(Array.from(files).map(async file => {
+        const blob = await comprimirImg(file);
+        const fd = new FormData();
+        fd.append("file", blob, file.name.replace(/\.[^.]+$/,".jpg"));
+        fd.append("upload_preset", CLD_PRESET);
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLD_CLOUD}/image/upload`, { method:"POST", body:fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error?.message||"Error");
+        return data.secure_url;
+      }));
+      setForm(f => ({ ...f, fotos: [...f.fotos, ...urls] }));
+    } catch(e) { alert("Error al subir: "+e.message); }
+    finally { setUploading(false); if(fileRef.current) fileRef.current.value=""; }
+  }
+
+  async function comprimirImg(file, maxW=1600, quality=0.82) {
+    return new Promise(resolve => {
+      const img = new Image(), url = URL.createObjectURL(file);
+      img.onload = () => {
+        let w=img.width, h=img.height;
+        if(w>maxW){h=Math.round(h*maxW/w);w=maxW;}
+        const c=document.createElement("canvas"); c.width=w; c.height=h;
+        c.getContext("2d").drawImage(img,0,0,w,h);
+        URL.revokeObjectURL(url);
+        c.toBlob(b=>resolve(b||file),"image/jpeg",quality);
+      };
+      img.onerror=()=>{URL.revokeObjectURL(url);resolve(file);};
+      img.src=url;
+    });
+  }
+
+  function abrirNuevo() { setForm(ACT_VACIO); setEditIdx(null); setShowForm(true); }
+  function abrirEditar(idx) { setForm({ ...lista[idx], fotos:[...lista[idx].fotos||[]] }); setEditIdx(idx); setShowForm(true); }
+  function cerrar() { setShowForm(false); setForm(ACT_VACIO); setEditIdx(null); }
+
+  async function guardar() {
+    if (!form.titulo.trim()) { alert("El título es obligatorio"); return; }
+    const item = { titulo:form.titulo.trim(), icono:form.icono.trim(), descripcion:form.descripcion.trim(), fotos:form.fotos };
+    const nueva = editIdx === null ? [...lista, item] : lista.map((a,i)=>i===editIdx?item:a);
+    await guardarLista(nueva);
+    cerrar();
+  }
+  async function eliminar(idx) {
+    if (!window.confirm("¿Eliminar esta actividad?")) return;
+    await guardarLista(lista.filter((_,i)=>i!==idx));
+  }
+  async function mover(idx, dir) {
+    const arr=[...lista], swap=idx+dir;
+    if(swap<0||swap>=arr.length) return;
+    [arr[idx],arr[swap]]=[arr[swap],arr[idx]];
+    await guardarLista(arr);
+  }
+
+  return (
+    <div>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:"1.2rem", flexWrap:"wrap", gap:12 }}>
+        <p style={{ fontSize:"0.83rem", color:C.muted, lineHeight:1.6, maxWidth:520 }}>
+          Actividades y lugares para mostrar en la página de inicio. Cada card tiene fotos en slideshow, ícono, título y descripción corta.
+        </p>
+        <button onClick={abrirNuevo} style={S.btnPrimary}>+ Agregar actividad</button>
+      </div>
+
+      {lista.length===0&&!showForm&&(
+        <div style={{ textAlign:"center", padding:"3rem", border:`2px dashed ${C.border}`, borderRadius:12, color:C.muted }}>
+          <div style={{ fontSize:"2rem", marginBottom:"0.8rem" }}>🏔️</div>
+          <p>Todavía no hay actividades. Hacé clic en <strong style={{color:C.green}}>+ Agregar actividad</strong>.</p>
+        </div>
+      )}
+
+      {lista.map((act,idx)=>(
+        <div key={idx} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, marginBottom:"0.75rem", padding:"1rem 1.2rem", display:"flex", alignItems:"center", gap:"1rem" }}>
+          {/* Preview foto */}
+          <div style={{ width:70, height:52, flexShrink:0, borderRadius:8, overflow:"hidden", background:"rgba(255,255,255,0.06)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"1.4rem" }}>
+            {act.fotos?.[0]
+              ? <img src={act.fotos[0]} alt={act.titulo} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+              : <span>{act.icono||"📍"}</span>
+            }
+          </div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontWeight:700, fontSize:"0.92rem", color:C.text }}>{act.icono} {act.titulo}</div>
+            {act.descripcion&&<div style={{ fontSize:"0.78rem", color:C.muted, marginTop:2, lineHeight:1.4, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis" }}>{act.descripcion}</div>}
+            <div style={{ fontSize:"0.7rem", color:C.muted, marginTop:3 }}>{act.fotos?.length||0} foto{act.fotos?.length!==1?"s":""}</div>
+          </div>
+          <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+            <button onClick={()=>mover(idx,-1)} disabled={idx===0} style={{ background:"none", border:`1px solid ${C.border}`, color:C.muted, borderRadius:6, padding:"4px 9px", cursor:idx===0?"default":"pointer", opacity:idx===0?0.3:1, fontSize:"0.85rem" }}>↑</button>
+            <button onClick={()=>mover(idx,1)} disabled={idx===lista.length-1} style={{ background:"none", border:`1px solid ${C.border}`, color:C.muted, borderRadius:6, padding:"4px 9px", cursor:idx===lista.length-1?"default":"pointer", opacity:idx===lista.length-1?0.3:1, fontSize:"0.85rem" }}>↓</button>
+            <button onClick={()=>abrirEditar(idx)} style={S.btnSm("#2d6a4f",C.green)}>Editar</button>
+            <button onClick={()=>eliminar(idx)} style={{ ...S.btnSm("transparent",C.red), color:C.red }}>✕</button>
+          </div>
+        </div>
+      ))}
+
+      {showForm&&(
+        <div style={{ background:C.surface, border:`1px solid ${C.greenBrd}`, borderRadius:12, padding:"1.4rem", marginTop:"1rem" }}>
+          <div style={{ fontWeight:700, fontSize:"0.92rem", color:C.green, marginBottom:"1.2rem" }}>
+            {editIdx===null?"Nueva actividad":"Editar actividad"}
+          </div>
+
+          <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:"1rem", marginBottom:"1rem" }}>
+            <div>
+              <label style={S.label}>Título *</label>
+              <input value={form.titulo} onChange={e=>setForm(f=>({...f,titulo:e.target.value}))} placeholder="Ej: Bosque de Arrayanes" style={S.inp}/>
+            </div>
+            <div>
+              <label style={S.label}>Ícono (emoji)</label>
+              <input value={form.icono} onChange={e=>setForm(f=>({...f,icono:e.target.value}))} placeholder="🌲" style={{...S.inp, width:72, textAlign:"center", fontSize:"1.3rem"}}/>
+            </div>
+          </div>
+
+          <div style={{ marginBottom:"1rem" }}>
+            <label style={S.label}>Descripción corta</label>
+            <textarea value={form.descripcion} onChange={e=>setForm(f=>({...f,descripcion:e.target.value}))} rows={2} placeholder="Una frase que describa el lugar o la actividad…" style={{...S.inp, resize:"vertical"}}/>
+          </div>
+
+          {/* Fotos */}
+          <label style={S.label}>Fotos ({form.fotos.length})</label>
+          {form.fotos.length>0&&(
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:"0.8rem" }}>
+              {form.fotos.map((url,fi)=>(
+                <div key={fi} style={{ position:"relative", width:90, height:65 }}>
+                  <img src={url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:6, display:"block", border: fi===0?`2px solid ${C.green}`:`1px solid ${C.border}` }}/>
+                  {fi===0&&<div style={{ position:"absolute", top:2, left:2, background:"rgba(82,183,136,0.9)", color:"#fff", fontSize:"0.5rem", padding:"1px 4px", borderRadius:3, fontWeight:700 }}>1ERA</div>}
+                  <button onClick={()=>setForm(f=>({...f,fotos:f.fotos.filter((_,j)=>j!==fi)}))} style={{ position:"absolute", top:-5, right:-5, width:16, height:16, borderRadius:"50%", background:C.red, border:"none", color:"#fff", fontSize:"0.65rem", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ background:"rgba(255,255,255,0.03)", border:`1px dashed ${C.border}`, borderRadius:8, padding:"0.8rem", textAlign:"center", marginBottom:"1.2rem" }}>
+            <input ref={fileRef} type="file" accept="image/*" multiple onChange={e=>subirFotos(e.target.files)} style={{ display:"none" }} id="act-foto-upload"/>
+            <label htmlFor="act-foto-upload" style={{ cursor:"pointer", display:"inline-flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+              <span style={{ fontSize:"1.2rem" }}>📷</span>
+              <span style={{ fontSize:"0.8rem", color:C.green, fontWeight:600 }}>{uploading?"Subiendo…":"Subir fotos"}</span>
+              <span style={{ fontSize:"0.68rem", color:C.muted }}>JPG o PNG · podés seleccionar varias · se optimizan automáticamente</span>
+            </label>
+          </div>
+
+          <div style={{ display:"flex", justifyContent:"flex-end", gap:10 }}>
+            <button onClick={cerrar} style={S.btnGhost}>Cancelar</button>
+            <button onClick={guardar} disabled={saving||uploading} style={S.btnPrimary}>{saving?"Guardando…":"Guardar"}</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -765,6 +945,7 @@ export default function SitioWeb() {
       )}
 
       {/* ══ NOSOTROS ═════════════════════════════════════════ */}
+      {tab==="actividades"&&<TabActividades />}
       {tab==="nosotros"&&<TabNosotros />}
       {tab==="faq"&&<TabProximamente icon="❓" titulo="Preguntas frecuentes — próximamente" descripcion="Vas a poder agregar, editar y reordenar las preguntas frecuentes del sitio. Los cambios se reflejan en tiempo real."/>}
       {tab==="resenas"&&<TabProximamente icon="⭐" titulo="Reseñas — próximamente" descripcion="Vas a poder cargar reseñas seleccionadas con nombre, fecha y texto para mostrarlas en el sitio sin depender de widgets externos."/>}
