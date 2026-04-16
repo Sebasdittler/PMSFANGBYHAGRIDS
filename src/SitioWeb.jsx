@@ -234,6 +234,119 @@ function TabProximamente({ icon, titulo, descripcion }) {
   );
 }
 
+// ── Tab Nosotros ──────────────────────────────────────────
+function TabNosotros() {
+  const [data,    setData]    = useState({ parrafo1:"", parrafo2:"", foto:"" });
+  const [saving,  setSaving]  = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [saved,   setSaved]   = useState(false);
+  const fotoRef = useRef(null);
+
+  useEffect(() => {
+    if (!window._db) return;
+    const unsub = window._db.collection("sitioWeb_config").doc("nosotros")
+      .onSnapshot(snap => {
+        if (snap.exists) setData({ parrafo1:"", parrafo2:"", foto:"", ...snap.data() });
+      }, () => {});
+    return () => unsub();
+  }, []);
+
+  async function subirFotoNosotros(file) {
+    setUploading(true);
+    try {
+      const blob = await comprimirImg(file);
+      const fd = new FormData();
+      fd.append("file", blob, file.name.replace(/\.[^.]+$/,".jpg"));
+      fd.append("upload_preset", CLD_PRESET);
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLD_CLOUD}/image/upload`, { method:"POST", body:fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error?.message||"Error");
+      setData(d => ({ ...d, foto: json.secure_url }));
+    } catch(e) { alert("Error al subir: "+e.message); }
+    finally { setUploading(false); if(fotoRef.current) fotoRef.current.value=""; }
+  }
+
+  async function comprimirImg(file, maxW=1920, quality=0.85) {
+    return new Promise(resolve => {
+      const img = new Image(), url = URL.createObjectURL(file);
+      img.onload = () => {
+        let w=img.width, h=img.height;
+        if(w>maxW){h=Math.round(h*maxW/w);w=maxW;}
+        const c=document.createElement("canvas"); c.width=w; c.height=h;
+        c.getContext("2d").drawImage(img,0,0,w,h);
+        URL.revokeObjectURL(url);
+        c.toBlob(b=>resolve(b||file),"image/jpeg",quality);
+      };
+      img.onerror=()=>{URL.revokeObjectURL(url);resolve(file);};
+      img.src=url;
+    });
+  }
+
+  async function guardar() {
+    if (!window._db) return;
+    setSaving(true);
+    try {
+      await window._db.collection("sitioWeb_config").doc("nosotros").set(data, { merge:true });
+      setSaved(true); setTimeout(()=>setSaved(false), 2500);
+    } catch(e) { alert("Error: "+e.message); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <div>
+      <p style={{ fontSize:"0.83rem", color:C.muted, marginBottom:"1.5rem", lineHeight:1.6 }}>
+        Los textos y la foto se actualizan en la web en tiempo real, sin deploy. Los valores y el diseño de la sección quedan fijos.
+      </p>
+
+      {/* Foto */}
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"1.2rem 1.4rem", marginBottom:"1rem" }}>
+        <div style={{ fontWeight:700, fontSize:"0.9rem", color:C.text, marginBottom:4 }}>📸 Foto del equipo</div>
+        <div style={{ fontSize:"0.75rem", color:C.muted, marginBottom:"1rem" }}>Relación de aspecto 4:5 recomendada (portrait). Se muestra a la izquierda del texto.</div>
+        <div style={{ display:"flex", alignItems:"center", gap:"1.2rem", flexWrap:"wrap" }}>
+          {data.foto && (
+            <div style={{ position:"relative", flexShrink:0 }}>
+              <img src={data.foto} alt="Equipo" style={{ width:100, height:125, objectFit:"cover", borderRadius:10, display:"block", border:`1px solid ${C.border}` }}/>
+              <button onClick={()=>setData(d=>({...d,foto:""}))} style={{ position:"absolute", top:-6, right:-6, width:20, height:20, borderRadius:"50%", background:C.red, border:"none", color:"#fff", fontSize:"0.75rem", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+            </div>
+          )}
+          <div style={{ flex:1 }}>
+            <div style={{ background:"rgba(255,255,255,0.03)", border:`1px dashed ${C.border}`, borderRadius:8, padding:"0.9rem", textAlign:"center" }}>
+              <input ref={fotoRef} type="file" accept="image/*" onChange={e=>e.target.files?.[0]&&subirFotoNosotros(e.target.files[0])} style={{ display:"none" }} id="nosotros-foto-upload"/>
+              <label htmlFor="nosotros-foto-upload" style={{ cursor:"pointer", display:"inline-flex", flexDirection:"column", alignItems:"center", gap:5 }}>
+                <span style={{ fontSize:"1.3rem" }}>📷</span>
+                <span style={{ fontSize:"0.82rem", color:C.green, fontWeight:600 }}>{uploading?"Subiendo…":(data.foto?"Cambiar foto":"Subir foto del equipo")}</span>
+                <span style={{ fontSize:"0.7rem", color:C.muted }}>JPG o PNG</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Textos */}
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"1.2rem 1.4rem", marginBottom:"1rem" }}>
+        <div style={{ fontWeight:700, fontSize:"0.9rem", color:C.text, marginBottom:"1rem" }}>✏️ Textos</div>
+        <div style={{ marginBottom:"1rem" }}>
+          <label style={S.label}>Párrafo 1</label>
+          <textarea value={data.parrafo1} onChange={e=>setData(d=>({...d,parrafo1:e.target.value}))} rows={4} style={{...S.inp, resize:"vertical"}}
+            placeholder="Somos Hagrids, una empresa de gestión de alquileres turísticos…"/>
+        </div>
+        <div>
+          <label style={S.label}>Párrafo 2</label>
+          <textarea value={data.parrafo2} onChange={e=>setData(d=>({...d,parrafo2:e.target.value}))} rows={3} style={{...S.inp, resize:"vertical"}}
+            placeholder="Administramos cada propiedad como si fuera nuestra…"/>
+        </div>
+      </div>
+
+      <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", gap:12 }}>
+        {saved && <span style={{ fontSize:"0.82rem", color:C.green }}>✓ Guardado</span>}
+        <button onClick={guardar} disabled={saving||uploading} style={S.btnPrimary}>
+          {saving?"Guardando…":"Guardar cambios"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────
 export default function SitioWeb() {
   const [tab, setTab] = useState("propiedades");
@@ -651,8 +764,8 @@ export default function SitioWeb() {
         </div>
       )}
 
-      {/* ══ PRÓXIMAMENTE ═════════════════════════════════════ */}
-      {tab==="nosotros"&&<TabProximamente icon="👥" titulo="Quiénes somos — próximamente" descripcion="Vas a poder editar los textos, los valores del equipo y la foto desde acá, sin necesidad de deployar."/>}
+      {/* ══ NOSOTROS ═════════════════════════════════════════ */}
+      {tab==="nosotros"&&<TabNosotros />}
       {tab==="faq"&&<TabProximamente icon="❓" titulo="Preguntas frecuentes — próximamente" descripcion="Vas a poder agregar, editar y reordenar las preguntas frecuentes del sitio. Los cambios se reflejan en tiempo real."/>}
       {tab==="resenas"&&<TabProximamente icon="⭐" titulo="Reseñas — próximamente" descripcion="Vas a poder cargar reseñas seleccionadas con nombre, fecha y texto para mostrarlas en el sitio sin depender de widgets externos."/>}
 
