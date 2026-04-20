@@ -822,18 +822,32 @@ function App() {
     return events;
   };
 
-  // Proxy CORS público — necesario para fetch desde el browser
-  const CORS_PROXY = "https://corsproxy.io/?";
+  // Proxies CORS públicos — se prueban en orden si el primero falla
+  const CORS_PROXIES = [
+    "https://corsproxy.io/?",
+    "https://api.allorigins.win/raw?url=",
+  ];
 
   // Hace fetch del iCal de una propiedad y actualiza externalRes
   const fetchIcal = async (prop) => {
     if(!prop.icalUrl) return;
     setIcalStatus(s=>({...s,[prop.id]:"loading"}));
+    let text = null;
+    let lastErr = null;
+    for(const proxy of CORS_PROXIES) {
+      try {
+        const url = proxy + encodeURIComponent(prop.icalUrl);
+        const res_ = await fetch(url, {signal: AbortSignal.timeout(10000)});
+        if(!res_.ok) throw new Error(`HTTP ${res_.status}`);
+        text = await res_.text();
+        break; // éxito, salir del loop
+      } catch(e) {
+        lastErr = e;
+        console.warn(`iCal proxy fallido [${proxy}]:`, e.message);
+      }
+    }
     try {
-      const url = CORS_PROXY + encodeURIComponent(prop.icalUrl);
-      const res_ = await fetch(url, {signal: AbortSignal.timeout(10000)});
-      if(!res_.ok) throw new Error(`HTTP ${res_.status}`);
-      const text = await res_.text();
+      if(!text) throw lastErr || new Error("Todos los proxies fallaron");
       const parsed = parseICS(text, prop.id);
 
       // Detectar reservas realmente nuevas (ids que no existían antes)
@@ -869,7 +883,10 @@ function App() {
      reset de estado al cambiar de vista.
   ───────────────────────────────────────────────────── */
   // Carga inicial al montar
-  useEffect(()=>{ syncAllIcals(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Sincroniza iCals cuando las propiedades llegan de Firestore (no al montar, cuando props_ aún está vacío)
+  useEffect(()=>{
+    if(props_.length > 0 && props_.some(p=>p.icalUrl)) syncAllIcals();
+  }, [props_.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Detectar mobile en tiempo real
   useEffect(()=>{
