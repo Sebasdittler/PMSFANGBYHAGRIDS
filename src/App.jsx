@@ -550,7 +550,7 @@ function App() {
   // forms
   const [resF,  setResF]  = useState({pid:"p1",guest:"",tel:"",plat:"Airbnb",ci:"",co:"",amt:"",cur:"ARS",senia:"",seniaDate:"",pax:"",bebes:"",nota:"",comision:10,comisionMode:"porcentaje",precioOwner:"",taskPre:false,taskPost:true});
   const [taskF, setTaskF] = useState({pid:"p1",type:"limpieza",desc:"",date:"",cost:""});
-  const [propF, setPropF] = useState({name:"",owners:[{name:"",fnac:"",profesion:""}],color:"#3B6E52",direccion:"",dormitorios:[],notas:"",icalUrl:""});
+  const [propF, setPropF] = useState({name:"",owners:[{name:"",fnac:"",profesion:""}],color:"#3B6E52",direccion:"",dormitorios:[],notas:"",icalUrls:[]});
   const [editPropId, setEditPropId] = useState(null);
   const [lavF,  setLavF]  = useState({rid:"1",lavId:"1",date:"",...emptyItems(),isManual:false,guestManual:"",pidManual:"1"});
   const [pricesF,setPricesF]= useState(LAUNDRY_PRICES_INIT);
@@ -787,7 +787,7 @@ function App() {
   };
 
   // Parsea el texto .ics y devuelve array de reservas externas para la propiedad pid
-  const parseICS = (rawText, pid) => {
+  const parseICS = (rawText, pid, urlIdx=0) => {
     // RFC 5545 line folding: una línea larga puede dividirse insertando CRLF + espacio/tab.
     // Hay que unir esas continuaciones antes de parsear.
     const text = rawText.replace(/\r\n[ \t]/g, "").replace(/\n[ \t]/g, "");
@@ -807,7 +807,7 @@ function App() {
       // Ignorar bloqueos genéricos de Airbnb ("Not available", "Airbnb (Not available)", etc.)
       const isBlock = /not available|bloqueado|blocked|airbnb \(not/i.test(summary);
       events.push({
-        id: `ext-${pid}-${uid||dtstart}-${idx}`,
+        id: `ext-${pid}-${urlIdx}-${uid||dtstart}-${idx}`,
         pid,
         guest: isBlock ? "🔒 Bloqueado" : summary,
         plat: source,
@@ -822,33 +822,49 @@ function App() {
     return events;
   };
 
+  // Helper: devuelve array de URLs iCal de una propiedad (compatibilidad con formato antiguo)
+  const getIcalUrls = (prop) => {
+    if(Array.isArray(prop.icalUrls) && prop.icalUrls.length > 0)
+      return prop.icalUrls.filter(u=>u&&u.trim());
+    if(prop.icalUrl) return [prop.icalUrl]; // backward compat
+    return [];
+  };
+
   // Proxies CORS públicos — se prueban en orden si el primero falla
   const CORS_PROXIES = [
     "https://corsproxy.io/?",
     "https://api.allorigins.win/raw?url=",
   ];
 
-  // Hace fetch del iCal de una propiedad y actualiza externalRes
-  const fetchIcal = async (prop) => {
-    if(!prop.icalUrl) return;
-    setIcalStatus(s=>({...s,[prop.id]:"loading"}));
+  // Hace fetch de una URL iCal individual y devuelve los eventos parseados (o [])
+  const fetchOneIcalUrl = async (url, prop, urlIdx) => {
     let text = null;
     let lastErr = null;
     for(const proxy of CORS_PROXIES) {
       try {
-        const url = proxy + encodeURIComponent(prop.icalUrl);
-        const res_ = await fetch(url, {signal: AbortSignal.timeout(10000)});
+        const fullUrl = proxy + encodeURIComponent(url);
+        const res_ = await fetch(fullUrl, {signal: AbortSignal.timeout(10000)});
         if(!res_.ok) throw new Error(`HTTP ${res_.status}`);
         text = await res_.text();
-        break; // éxito, salir del loop
+        break;
       } catch(e) {
         lastErr = e;
         console.warn(`iCal proxy fallido [${proxy}]:`, e.message);
       }
     }
+    if(!text) throw lastErr || new Error("Todos los proxies fallaron");
+    return parseICS(text, prop.id, urlIdx);
+  };
+
+  // Hace fetch de todos los iCals de una propiedad y actualiza externalRes
+  const fetchIcal = async (prop) => {
+    const urls = getIcalUrls(prop);
+    if(urls.length === 0) return;
+    setIcalStatus(s=>({...s,[prop.id]:"loading"}));
     try {
-      if(!text) throw lastErr || new Error("Todos los proxies fallaron");
-      const parsed = parseICS(text, prop.id);
+      // Fetch todas las URLs en paralelo
+      const results = await Promise.all(urls.map((url, idx) => fetchOneIcalUrl(url, prop, idx)));
+      const parsed = results.flat();
 
       // Detectar reservas realmente nuevas (ids que no existían antes)
       setExternalRes(prev => {
@@ -871,10 +887,9 @@ function App() {
       setIcalStatus(s=>({...s,[prop.id]:"error"}));
     }
   };
-
   // Sincroniza todos los iCals de propiedades con URL configurada
   const syncAllIcals = () => {
-    props_.forEach(p=>{ if(p.icalUrl) fetchIcal(p); });
+    props_.forEach(p=>{ if(getIcalUrls(p).length > 0) fetchIcal(p); });
   };
 
   /* ─────────────────────────────────────────────────────
@@ -885,7 +900,7 @@ function App() {
   // Carga inicial al montar
   // Sincroniza iCals cuando las propiedades llegan de Firestore (no al montar, cuando props_ aún está vacío)
   useEffect(()=>{
-    if(props_.length > 0 && props_.some(p=>p.icalUrl)) syncAllIcals();
+    if(props_.length > 0 && props_.some(p=>getIcalUrls(p).length > 0)) syncAllIcals();
   }, [props_.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Detectar mobile en tiempo real
@@ -1112,7 +1127,7 @@ function App() {
      4g. MUTACIONES — PROPIEDADES
      addProp, openEditProp, saveEditProp
   ───────────────────────────────────────────────────── */
-  const EMPTY_PROP = {name:"",owners:[{name:"",fnac:"",profesion:""}],color:"#3B6E52",direccion:"",dormitorios:[],notas:"",icalUrl:""};
+  const EMPTY_PROP = {name:"",owners:[{name:"",fnac:"",profesion:""}],color:"#3B6E52",direccion:"",dormitorios:[],notas:"",icalUrls:[]};
   const addProp = () => {
     if(!canWrite()) return;
     const newId = uid();
@@ -1128,7 +1143,11 @@ function App() {
       ? p.dormitorios.map(d=>d.matrimoniales!==undefined ? d : {id:d.id||uid(),nombre:d.nombre||"",matrimoniales:0,simples:d.camas||1})
       : (p.dormitorios ? Array.from({length:+p.dormitorios||0},(_,i)=>({id:i+1,nombre:"",matrimoniales:1,simples:0})) : []);
     const ownersArr = p.owners ? p.owners.map(o=>({name:o.name||"",fnac:o.fnac||"",profesion:o.profesion||""})) : [{name:"",fnac:"",profesion:""}];
-    setPropF({name:p.name,owners:ownersArr,color:p.color,direccion:p.direccion||"",dormitorios:dorms,notas:p.notas||"",icalUrl:p.icalUrl||""});
+    // Backward compat: si existe icalUrl (string viejo), convertirlo a icalUrls (array nuevo)
+    const icalUrls = Array.isArray(p.icalUrls) && p.icalUrls.length > 0
+      ? p.icalUrls
+      : (p.icalUrl ? [p.icalUrl] : []);
+    setPropF({name:p.name,owners:ownersArr,color:p.color,direccion:p.direccion||"",dormitorios:dorms,notas:p.notas||"",icalUrls});
     setEditPropId(p.id); setShowPM(true);
   };
   const saveEditProp = () => {
@@ -1137,7 +1156,7 @@ function App() {
     const updated = {...props_.find(p=>p.id===editPropId)||{}, ...toSave};
     setProps_(ps=>ps.map(p=>p.id===editPropId?updated:p));
     fbSet("props", editPropId, updated);
-    if(propF.icalUrl) fetchIcal({...updated, id:editPropId});
+    if((updated.icalUrls||[]).length > 0) fetchIcal({...updated, id:editPropId});
     setEditPropId(null); setShowPM(false); setPropF(EMPTY_PROP);
   };
   /* ─────────────────────────────────────────────────────
@@ -2324,7 +2343,7 @@ function App() {
             </button>
 
             {/* iCal sync */}
-            {props_.some(p=>p.icalUrl) && (
+            {props_.some(p=>getIcalUrls(p).length > 0) && (
               <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
                 <button className="fang-btn"
                   style={{...C.btn("d"),fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"8px 14px",
@@ -2460,7 +2479,7 @@ function App() {
                         }}>
                         {isExt?(
                           <span style={{fontSize:isMobile?8:9,fontWeight:700,color:extColor,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:3,letterSpacing:.2}}>
-                            {extSrc==="airbnb"?"✦":extSrc==="booking"?"▣":"⊘"}{!isMobile&&(" "+extLabel)}
+                            {extSrc==="airbnb"?"✦":extSrc==="booking"?"▣":"⊘"}{" "}{extLabel}{p?.name?" · "+p.name:""}
                           </span>
                         ):(
                           <span style={{fontSize:isMobile?8.5:9.5,color:"#fff",fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",letterSpacing:.1,textShadow:"0 1px 2px rgba(0,0,0,0.25)",textAlign:"center",width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:3}}>
@@ -5702,23 +5721,38 @@ function App() {
 
         <div style={{borderTop:`1px solid ${T.border}`,paddingTop:14,marginTop:2}}>
           <div style={{fontSize:12,fontWeight:700,textTransform:"uppercase",letterSpacing:1.2,color:T.textMut,marginBottom:6}}>
-            🔗 Calendario externo (iCal)
+            🔗 Calendarios externos (iCal)
           </div>
-          <div style={{fontSize:12,color:T.textMut,marginBottom:8,lineHeight:1.5}}>
-            Pegá el link iCal de Airbnb o Booking para ver la ocupación externa en el calendario. Solo lectura.
+          <div style={{fontSize:12,color:T.textMut,marginBottom:10,lineHeight:1.5}}>
+            Pegá los links iCal de Airbnb, Booking u otras plataformas. Se detecta la fuente automáticamente. Solo lectura.
           </div>
-          <label style={C.lbl}>URL del iCal</label>
-          <input style={C.inp} placeholder="https://www.airbnb.com/calendar/ical/…"
-            value={propF.icalUrl||""}
-            onChange={e=>setPropF(f=>({...f,icalUrl:e.target.value.trim()}))}/>
-          {propF.icalUrl && (
-            <div style={{fontSize:11,color:"#3B6E52",marginTop:4}}>
-              ✓ URL configurada. Se sincronizará al guardar y al iniciar la app.
+          {(propF.icalUrls||[]).map((url, i)=>(
+            <div key={i} style={{display:"flex",gap:6,marginBottom:8,alignItems:"center"}}>
+              <input style={{...C.inp,flex:1,marginBottom:0}}
+                placeholder={i===0?"https://www.airbnb.com/calendar/ical/…":"https://admin.booking.com/hotel/hoteladmin/ical.html?…"}
+                value={url}
+                onChange={e=>{
+                  const v=e.target.value.trim();
+                  setPropF(f=>({...f,icalUrls:f.icalUrls.map((u,j)=>j===i?v:u)}));
+                }}/>
+              <button onClick={()=>setPropF(f=>({...f,icalUrls:f.icalUrls.filter((_,j)=>j!==i)}))}
+                style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,padding:"6px 10px",cursor:"pointer",color:T.textMut,fontSize:13,flexShrink:0}}>
+                ✕
+              </button>
+            </div>
+          ))}
+          <button onClick={()=>setPropF(f=>({...f,icalUrls:[...(f.icalUrls||[]),""]}))}
+            style={{...C.btn("d"),fontSize:11,padding:"7px 14px",marginTop:2}}>
+            + Agregar calendario
+          </button>
+          {(propF.icalUrls||[]).some(u=>u) && (
+            <div style={{fontSize:11,color:"#3B6E52",marginTop:8}}>
+              ✓ {(propF.icalUrls||[]).filter(u=>u).length} URL{(propF.icalUrls||[]).filter(u=>u).length>1?"s":""}  configurada{(propF.icalUrls||[]).filter(u=>u).length>1?"s":""}. Se sincronizarán al guardar y al iniciar la app.
             </div>
           )}
           {editPropId && icalStatus[editPropId]==="error" && (
             <div style={{fontSize:11,color:"#C84040",marginTop:4}}>
-              ⚠️ Última sincronización falló. Verificá la URL.
+              ⚠️ Última sincronización falló. Verificá las URLs.
             </div>
           )}
           {editPropId && icalStatus[editPropId]==="ok" && (
