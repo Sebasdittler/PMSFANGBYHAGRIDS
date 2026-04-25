@@ -6134,8 +6134,8 @@ function App() {
                   <tr key={i.key} style={{borderBottom:`1px solid ${T.border}`}}>
                     <td style={{padding:"7px 10px"}}>{i.label}</td>
                     <td style={{padding:"7px 10px",textAlign:"right",fontWeight:700}}>{l[i.key]}</td>
-                    <td style={{padding:"7px 10px",textAlign:"right",color:T.textSub}}>{$$(lavPrices[i.key]||0)}</td>
-                    <td style={{padding:"7px 10px",textAlign:"right",fontWeight:700}}>{$$(l[i.key]*(lavPrices[i.key]||0))}</td>
+                    <td style={{padding:"7px 10px",textAlign:"right",color:T.textSub}}>{$$(getLavPrices(l.lavId)[i.key]||0)}</td>
+                    <td style={{padding:"7px 10px",textAlign:"right",fontWeight:700}}>{$$(l[i.key]*(getLavPrices(l.lavId)[i.key]||0))}</td>
                   </tr>
                 ))}
                 <tr style={{background:T.bgAccent}}>
