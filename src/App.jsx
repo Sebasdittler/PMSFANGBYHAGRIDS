@@ -3264,9 +3264,9 @@ function App() {
     const [payAmt,  setPayAmt]  = React.useState(String(suggestedAmount||""));
     const [payMeth, setPayMeth] = React.useState("Efectivo");
     const [payDate, setPayDate] = React.useState(TODAY);
-    const canSave = +payAmt > 0 && +payAmt <= ps.total;
+    const canSave = +payAmt > 0 && (ps.total <= 0 || +payAmt <= ps.total);
     const excedePendiente = +payAmt > 0 && ps.pending > 0 && +payAmt > ps.pending;
-    const excedeTotalAbsoluto = +payAmt > ps.total;
+    const excedeTotalAbsoluto = ps.total > 0 && +payAmt > ps.total;
     const handleSave = async () => {
       const snapshot = { amount: +payAmt, method: payMeth, date: payDate };
       await registerPayment(r.id, snapshot.amount, snapshot.method, snapshot.date);
