@@ -518,6 +518,7 @@ function App() {
     isOwner ? props_.filter(p => CURRENT_USER.propIds.includes(p.id)) : props_,
     [props_]
   );
+  const isOwnedRecord = pid => !isOwner || allowedProps.some(p => p.id === pid);
   const tasks   = useMemo(() => filterByUser(_tasks),   [_tasks]);
   const laundry = useMemo(() => filterByUser(_laundry), [_laundry]);
   const gastos  = useMemo(() => filterByUser(_gastos),  [_gastos]);
@@ -606,6 +607,7 @@ function App() {
   ───────────────────────────────────────────────────── */
   const gp   = id => props_.find(p=>p.id===id)||{name:"—",color:"#ccc"};
   const gr   = id => res.find(r=>r.id===id)||{guest:"—",ci:"",pid:"0"};
+  const laundryRecordPid = lu => lu.isManual ? lu.pidManual : gr(lu.rid)?.pid;
   const glav = id => lavaderos.find(l=>l.id===id)||{name:"—"};
   // Resuelve los precios correctos para un lavadero: usa los del lavadero si existen, sino el global
   const getLavPrices = lavId => {
@@ -683,6 +685,7 @@ function App() {
     if(!canWrite()) return;
     const gastoUpd = _gastos.find(g=>g.id===editGastoId);
     if(gastoUpd) {
+      if(!isOwnedRecord(gastoUpd.pid)) return;
       const prevData = gastoUpd;
       const u={...gastoUpd,pid:gastoF.pid,cat:gastoF.cat,desc:gastoF.desc,amt:+(gastoF.amt)||0,date:gastoF.date};
       setGastos(gs=>gs.map(g=>g.id===editGastoId?u:g));
@@ -697,6 +700,7 @@ function App() {
     if(!canWrite()) return;
     const g=_gastos.find(x=>x.id===id);
     if(g) {
+      if(!isOwnedRecord(g.pid)) return;
       setGastos(gs=>gs.map(x=>x.id===id?{...x,cobrado:!x.cobrado}:x));
       fbSetR("gastos",id,{...g,cobrado:!g.cobrado},()=>{
         setGastos(gs=>gs.map(x=>x.id===id?g:x));
@@ -708,6 +712,7 @@ function App() {
     if(!canWrite()) return;
     if(!window.confirm(`¿Eliminar gasto "${desc||"este gasto"}"? Esta acción no se puede deshacer.`)) return;
     const prevData = _gastos.find(g=>g.id===id);
+    if(prevData && !isOwnedRecord(prevData.pid)) return;
     setGastos(gs=>gs.filter(g=>g.id!==id));
     fbDelR("gastos", id, () => {
       if(prevData) setGastos(gs=>[...gs,prevData]);
@@ -738,6 +743,7 @@ function App() {
     if(!canWrite()) return;
     const pagoUpd=_pagos.find(p=>p.id===editPagoId);
     if(pagoUpd) {
+      if(!isOwnedRecord(pagoUpd.pid)) return;
       const prevData = pagoUpd;
       const u={...pagoUpd,desc:pagoF.desc,acreedor:pagoF.acreedor,amt:+(pagoF.amt)||0,date:pagoF.date,pid:pagoF.pid||"0",tipo:pagoF.tipo};
       setPagos(ps=>ps.map(p=>p.id===editPagoId?u:p));
@@ -752,6 +758,7 @@ function App() {
     if(!canWrite()) return;
     const p=_pagos.find(x=>x.id===id);
     if(p) {
+      if(!isOwnedRecord(p.pid)) return;
       setPagos(ps=>ps.map(x=>x.id===id?{...x,pagado:!x.pagado}:x));
       fbSetR("pagos",id,{...p,pagado:!p.pagado},()=>{
         setPagos(ps=>ps.map(x=>x.id===id?p:x));
@@ -763,6 +770,7 @@ function App() {
     if(!canWrite()) return;
     if(!window.confirm(`¿Eliminar pago "${desc||"este pago"}"? Esta acción no se puede deshacer.`)) return;
     const prevData = _pagos.find(p=>p.id===id);
+    if(prevData && !isOwnedRecord(prevData.pid)) return;
     setPagos(ps=>ps.filter(p=>p.id!==id));
     fbDelR("pagos", id, () => {
       if(prevData) setPagos(ps=>[...ps,prevData]);
@@ -1266,7 +1274,7 @@ function App() {
       showToast("Error al guardar, reintentá");
     });
     setShowLM(false);
-    setLavF({rid:res.find(r=>r.co>=TODAY)?.id||"r1",lavId:lavaderos[0]?.id||"lav1",date:"",...emptyItems(),isManual:false,guestManual:"",pidManual:props_[0]?.id||"p1"});
+    setLavF({rid:res.find(r=>r.co>=TODAY)?.id||"r1",lavId:lavaderos[0]?.id||"lav1",date:"",...emptyItems(),isManual:false,guestManual:"",pidManual:allowedProps[0]?.id||"p1"});
   };
   const openEditLaundry = l => {
     setLavF({rid:l.rid||"r1",lavId:l.lavId,date:l.date,...Object.fromEntries(LAUNDRY_ITEMS.map(i=>[i.key,l[i.key]||0])),isManual:l.isManual||false,guestManual:l.guestManual||"",pidManual:l.pidManual||"p1"});
@@ -1276,6 +1284,7 @@ function App() {
     if(!canWrite()) return;
     const lu=_laundry.find(l=>l.id===editLaundryId);
     if(lu) {
+      if(!isOwnedRecord(laundryRecordPid(lu))) return;
       const prevData = lu;
       const upd={...lu,lavId:lavF.lavId,date:lavF.date,isManual:lavF.isManual||false,guestManual:lavF.isManual?(lavF.guestManual||"Recambio"):"",pidManual:lavF.isManual?lavF.pidManual:"0",...Object.fromEntries(LAUNDRY_ITEMS.map(i=>[i.key,+lavF[i.key]||0]))};
       setLaundry(ls=>ls.map(l=>l.id===editLaundryId?upd:l));
@@ -1284,12 +1293,13 @@ function App() {
         showToast("Error al guardar, reintentá");
       });
     }
-    setEditLaundryId(null); setLavF({rid:res.find(r=>r.co>=TODAY)?.id||"r1",lavId:lavaderos[0]?.id||"lav1",date:"",...emptyItems(),isManual:false,guestManual:"",pidManual:props_[0]?.id||"p1"});
+    setEditLaundryId(null); setLavF({rid:res.find(r=>r.co>=TODAY)?.id||"r1",lavId:lavaderos[0]?.id||"lav1",date:"",...emptyItems(),isManual:false,guestManual:"",pidManual:allowedProps[0]?.id||"p1"});
   };
   const updTask = (id,status,hours=null) => {
     if(!canWrite()) return;
     const t=_tasks.find(x=>x.id===id);
     if(t) {
+      if(!isOwnedRecord(t.pid)) return;
       const upd={...t,status,...(hours!==null?{hours}:{})};
       setTasks(ts=>ts.map(x=>x.id===id?upd:x));
       fbSetR("tasks",id,upd,()=>{
@@ -1314,6 +1324,7 @@ function App() {
     const cost = hs * vh;
     const taskUpd = _tasks.find(x=>x.id===hoursModal.taskId);
     if(taskUpd) {
+      if(!isOwnedRecord(taskUpd.pid)) return;
       const upd = {...taskUpd, status:"completado", hours:hs, cost};
       setTasks(t=>t.map(x=>x.id===hoursModal.taskId?upd:x));
       fbSetR("tasks", hoursModal.taskId, upd, () => {
@@ -2156,7 +2167,7 @@ function App() {
     const fmtAmt=r=>r.cur==="USD"?$$usd(r.amt):$$(r.amt);
     const openResFromCal=()=>{
       const filteredPids=[...calFilterPids];
-      const targetPid=filteredPids.length===1?filteredPids[0]:(props_[0]?.id||"p1");
+      const targetPid=filteredPids.length===1?filteredPids[0]:(allowedProps[0]?.id||"p1");
       // Auto-calcular CO = CI + 1 día
       const ci=calDay||"";
       let co="";
@@ -3019,7 +3030,7 @@ function App() {
                         </div>
                         <div style={{fontSize:11,color:T.textMut,marginTop:3}}>{fmtD(r.ci)} → {fmtD(r.co)}</div>
                         <button
-                          onClick={()=>{setLavF({rid:r.id,lavId:lavaderos[0]?.id||"lav1",date:TODAY,...emptyItems(),isManual:false,guestManual:"",pidManual:props_[0]?.id||"p1"});setShowLM(true);}}
+                          onClick={()=>{setLavF({rid:r.id,lavId:lavaderos[0]?.id||"lav1",date:TODAY,...emptyItems(),isManual:false,guestManual:"",pidManual:allowedProps[0]?.id||"p1"});setShowLM(true);}}
                           className="fang-btns" style={{...C.btns("p"),marginTop:8,width:"100%",fontSize:11,padding:"5px 8px"}}>
                           👕 Enviar al lavadero →
                         </button>
@@ -4263,7 +4274,7 @@ function App() {
     }));
     const [tarifas, setTarifas] = useS(emptyTarifas);
     const [tabCot, setTabCot] = useS("tarifas"); // "tarifas" | "armado" | "portal" | "comision"
-    const [propTab, setPropTab] = useS(props_[0]?.id || "p1");
+    const [propTab, setPropTab] = useS(allowedProps[0]?.id || "p1");
 
     /* ── Tab Armado de precio ── */
     const [armCur,       setArmCur]       = useS("USD");
