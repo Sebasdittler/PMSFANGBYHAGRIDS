@@ -155,6 +155,17 @@ const fbDel = (col, id) => {
   window._db.collection(col).doc(String(id)).delete()
     .catch(e => console.error("[FB del]", col, id, e));
 };
+// Variantes con rollback: llaman onErr() si la escritura en Firestore falla
+const fbSetR = (col, id, data, onErr) => {
+  if(!window._fbReady || !window._db) return;
+  window._db.collection(col).doc(String(id)).set(data)
+    .catch(e => { console.error("[FB set]", col, id, e); onErr?.(); });
+};
+const fbDelR = (col, id, onErr) => {
+  if(!window._fbReady || !window._db) return;
+  window._db.collection(col).doc(String(id)).delete()
+    .catch(e => { console.error("[FB del]", col, id, e); onErr?.(); });
+};
 
 const $$    = n => new Intl.NumberFormat("es-AR",{style:"currency",currency:"ARS",maximumFractionDigits:0}).format(n);
 const $$usd = n => new Intl.NumberFormat("es-AR",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(n);
@@ -308,7 +319,7 @@ const filterByUser = arr =>
    Hook de acceso a reservas. En el futuro este bloque se
    reemplaza por llamadas a Firebase sin cambiar la firma.
 ══════════════════════════════════════════════════════════ */
-function useReservas() {
+function useReservas(showToast) {
   // Migración: agrega ownerId, paidAmount y payments a datos existentes.
   // senia/seniaDate se mantienen como campos de conveniencia (usados en el reporte
   // de señas del período) pero ya no son la fuente de verdad para getPaymentStatus.
@@ -341,7 +352,10 @@ function useReservas() {
           : [],
       };
       setRes(prev => [...prev, normalized]);
-      fbSet("reservas", normalized.id, normalized);
+      fbSetR("reservas", normalized.id, normalized, () => {
+        setRes(prev => prev.filter(r => r.id !== normalized.id));
+        showToast?.("Error al guardar, reintentá");
+      });
 
       // Notificación al guardar reserva nueva
       const cur  = reserva.cur === "USD" ? "USD" : "ARS";
@@ -361,8 +375,12 @@ function useReservas() {
   const updateReserva = async (reserva) => {
     if(!canWrite()) return;
     try {
+      const prevData = _res.find(r => r.id === reserva.id);
       setRes(prev => prev.map(r => r.id === reserva.id ? reserva : r));
-      fbSet("reservas", reserva.id, reserva);
+      fbSetR("reservas", reserva.id, reserva, () => {
+        if(prevData) setRes(s => s.map(r => r.id === reserva.id ? prevData : r));
+        showToast?.("Error al guardar, reintentá");
+      });
     } catch(e) {
       console.error("[useReservas] Error al actualizar reserva:", e);
       throw e;
@@ -373,8 +391,12 @@ function useReservas() {
   const deleteReserva = async (id) => {
     if(!canWrite()) return;
     try {
+      const prevData = _res.find(r => r.id === id);
       setRes(prev => prev.filter(r => r.id !== id));
-      fbDel("reservas", id);
+      fbDelR("reservas", id, () => {
+        if(prevData) setRes(s => [...s, prevData]);
+        showToast?.("Error al guardar, reintentá");
+      });
     } catch(e) {
       console.error("[useReservas] Error al eliminar reserva:", e);
       throw e;
@@ -385,14 +407,16 @@ function useReservas() {
   const registerPayment = async (resId, amount, method, date) => {
     if(!canWrite()) return;
     try {
-      setRes(prev => prev.map(r => {
-        if(r.id !== resId) return r;
-        const newPaid    = (r.paidAmount || 0) + amount;
-        const newPayment = {amount, date: date || getToday(), method: method || "Efectivo"};
-        const updated = {...r, paidAmount: newPaid, payments: [...(r.payments||[]), newPayment]};
-        fbSet("reservas", updated.id, updated);
-        return updated;
-      }));
+      const prevData = _res.find(r => r.id === resId);
+      if(!prevData) return;
+      const newPaid    = (prevData.paidAmount || 0) + amount;
+      const newPayment = {amount, date: date || getToday(), method: method || "Efectivo"};
+      const updated = {...prevData, paidAmount: newPaid, payments: [...(prevData.payments||[]), newPayment]};
+      setRes(prev => prev.map(r => r.id === resId ? updated : r));
+      fbSetR("reservas", updated.id, updated, () => {
+        setRes(s => s.map(r => r.id === resId ? prevData : r));
+        showToast?.("Error al guardar, reintentá");
+      });
     } catch(e) {
       console.error("[useReservas] Error al registrar pago:", e);
       throw e;
@@ -401,16 +425,18 @@ function useReservas() {
 
   const removeLastPayment = (resId) => {
     if(!canWrite()) return;
-    setRes(prev => prev.map(r => {
-      if(r.id !== resId) return r;
-      const payments = [...(r.payments||[])];
-      if(!payments.length) return r;
-      const last = payments.pop();
-      const newPaid = Math.max(0, (r.paidAmount||0) - last.amount);
-      const updated = {...r, paidAmount: newPaid, payments};
-      fbSet("reservas", updated.id, updated);
-      return updated;
-    }));
+    const prevData = _res.find(r => r.id === resId);
+    if(!prevData) return;
+    const payments = [...(prevData.payments||[])];
+    if(!payments.length) return;
+    const last = payments.pop();
+    const newPaid = Math.max(0, (prevData.paidAmount||0) - last.amount);
+    const updated = {...prevData, paidAmount: newPaid, payments};
+    setRes(prev => prev.map(r => r.id === resId ? updated : r));
+    fbSetR("reservas", updated.id, updated, () => {
+      setRes(s => s.map(r => r.id === resId ? prevData : r));
+      showToast?.("Error al guardar, reintentá");
+    });
   };
 
   return { res, getReservas, saveReserva, updateReserva, deleteReserva, registerPayment, removeLastPayment };
@@ -441,7 +467,9 @@ function App() {
   // Alias: sobreescribe TODAY en el scope de App con el valor reactivo
   const TODAY = todayStr;
   const [props_,  setProps_] = useState([]);
-  const { res, getReservas, saveReserva, updateReserva, deleteReserva, registerPayment, removeLastPayment } = useReservas();
+  const [toast, setToast] = useState(null);
+  const showToast = msg => { setToast(msg); setTimeout(() => setToast(null), 4000); };
+  const { res, getReservas, saveReserva, updateReserva, deleteReserva, registerPayment, removeLastPayment } = useReservas(showToast);
   const [_tasks,   setTasks]  = useState([]);
   const [lavaderos, setLavaderos] = useState([]);
   const [_laundry, setLaundry]= useState([]);
@@ -641,7 +669,10 @@ function App() {
     if(!canWrite()) return;
     const ng={id:uid(),ownerId:CURRENT_USER.id,pid:gastoF.pid,cat:gastoF.cat,desc:gastoF.desc,amt:+(gastoF.amt)||0,date:gastoF.date,cobrado:false};
     setGastos(g=>[...g,ng]);
-    fbSet("gastos", ng.id, ng);
+    fbSetR("gastos", ng.id, ng, () => {
+      setGastos(g=>g.filter(x=>x.id!==ng.id));
+      showToast("Error al guardar, reintentá");
+    });
     setShowGastoM(false); setGastoF({pid:"p1",cat:"Limpieza",desc:"",amt:"",date:"",cobrado:false});
   };
   const openEditGasto = g => {
@@ -651,16 +682,37 @@ function App() {
   const saveEditGasto = () => {
     if(!canWrite()) return;
     const gastoUpd = _gastos.find(g=>g.id===editGastoId);
-    if(gastoUpd) { const u={...gastoUpd,pid:gastoF.pid,cat:gastoF.cat,desc:gastoF.desc,amt:+(gastoF.amt)||0,date:gastoF.date}; fbSet("gastos",editGastoId,u); }
-    setGastos(gs=>gs.map(g=>g.id===editGastoId?{...g,pid:gastoF.pid,cat:gastoF.cat,desc:gastoF.desc,amt:+(gastoF.amt)||0,date:gastoF.date}:g));
+    if(gastoUpd) {
+      const prevData = gastoUpd;
+      const u={...gastoUpd,pid:gastoF.pid,cat:gastoF.cat,desc:gastoF.desc,amt:+(gastoF.amt)||0,date:gastoF.date};
+      setGastos(gs=>gs.map(g=>g.id===editGastoId?u:g));
+      fbSetR("gastos",editGastoId,u,()=>{
+        setGastos(gs=>gs.map(g=>g.id===editGastoId?prevData:g));
+        showToast("Error al guardar, reintentá");
+      });
+    }
     setEditGastoId(null); setShowGastoM(false); setGastoF({pid:"p1",cat:"Limpieza",desc:"",amt:"",date:"",cobrado:false});
   };
-  const toggleCobrado = id => { if(!canWrite()) return; const g=_gastos.find(x=>x.id===id); if(g) fbSet("gastos",id,{...g,cobrado:!g.cobrado}); setGastos(gs=>gs.map(g=>g.id===id?{...g,cobrado:!g.cobrado}:g)); };
+  const toggleCobrado = id => {
+    if(!canWrite()) return;
+    const g=_gastos.find(x=>x.id===id);
+    if(g) {
+      setGastos(gs=>gs.map(x=>x.id===id?{...x,cobrado:!x.cobrado}:x));
+      fbSetR("gastos",id,{...g,cobrado:!g.cobrado},()=>{
+        setGastos(gs=>gs.map(x=>x.id===id?g:x));
+        showToast("Error al guardar, reintentá");
+      });
+    }
+  };
   const deleteGasto = (id, desc) => {
     if(!canWrite()) return;
     if(!window.confirm(`¿Eliminar gasto "${desc||"este gasto"}"? Esta acción no se puede deshacer.`)) return;
+    const prevData = _gastos.find(g=>g.id===id);
     setGastos(gs=>gs.filter(g=>g.id!==id));
-    fbDel("gastos", id);
+    fbDelR("gastos", id, () => {
+      if(prevData) setGastos(gs=>[...gs,prevData]);
+      showToast("Error al guardar, reintentá");
+    });
   };
 
   /* ─────────────────────────────────────────────────────
@@ -672,7 +724,10 @@ function App() {
     if(!canWrite()) return;
     const np={id:uid(),ownerId:CURRENT_USER.id,desc:pagoF.desc,acreedor:pagoF.acreedor,amt:+(pagoF.amt)||0,date:pagoF.date,pid:pagoF.pid||"0",tipo:pagoF.tipo,pagado:false};
     setPagos(ps=>[...ps,np]);
-    fbSet("pagos", np.id, np);
+    fbSetR("pagos", np.id, np, () => {
+      setPagos(ps=>ps.filter(x=>x.id!==np.id));
+      showToast("Error al guardar, reintentá");
+    });
     setShowPagoM(false); setPagoF({desc:"",acreedor:"",amt:"",date:"",pid:"0",tipo:"otro"});
   };
   const openEditPago = p => {
@@ -681,16 +736,38 @@ function App() {
   };
   const saveEditPago = () => {
     if(!canWrite()) return;
-    const pagoUpd=_pagos.find(p=>p.id===editPagoId); if(pagoUpd) fbSet("pagos",editPagoId,{...pagoUpd,desc:pagoF.desc,acreedor:pagoF.acreedor,amt:+(pagoF.amt)||0,date:pagoF.date,pid:pagoF.pid||"0",tipo:pagoF.tipo});
-    setPagos(ps=>ps.map(p=>p.id===editPagoId?{...p,desc:pagoF.desc,acreedor:pagoF.acreedor,amt:+(pagoF.amt)||0,date:pagoF.date,pid:pagoF.pid||"0",tipo:pagoF.tipo}:p));
+    const pagoUpd=_pagos.find(p=>p.id===editPagoId);
+    if(pagoUpd) {
+      const prevData = pagoUpd;
+      const u={...pagoUpd,desc:pagoF.desc,acreedor:pagoF.acreedor,amt:+(pagoF.amt)||0,date:pagoF.date,pid:pagoF.pid||"0",tipo:pagoF.tipo};
+      setPagos(ps=>ps.map(p=>p.id===editPagoId?u:p));
+      fbSetR("pagos",editPagoId,u,()=>{
+        setPagos(ps=>ps.map(p=>p.id===editPagoId?prevData:p));
+        showToast("Error al guardar, reintentá");
+      });
+    }
     setEditPagoId(null); setShowPagoM(false); setPagoF({desc:"",acreedor:"",amt:"",date:"",pid:"0",tipo:"otro"});
   };
-  const togglePagado = id => { if(!canWrite()) return; const p=_pagos.find(x=>x.id===id); if(p) fbSet("pagos",id,{...p,pagado:!p.pagado}); setPagos(ps=>ps.map(p=>p.id===id?{...p,pagado:!p.pagado}:p)); };
+  const togglePagado = id => {
+    if(!canWrite()) return;
+    const p=_pagos.find(x=>x.id===id);
+    if(p) {
+      setPagos(ps=>ps.map(x=>x.id===id?{...x,pagado:!x.pagado}:x));
+      fbSetR("pagos",id,{...p,pagado:!p.pagado},()=>{
+        setPagos(ps=>ps.map(x=>x.id===id?p:x));
+        showToast("Error al guardar, reintentá");
+      });
+    }
+  };
   const deletePago = (id, desc) => {
     if(!canWrite()) return;
     if(!window.confirm(`¿Eliminar pago "${desc||"este pago"}"? Esta acción no se puede deshacer.`)) return;
+    const prevData = _pagos.find(p=>p.id===id);
     setPagos(ps=>ps.filter(p=>p.id!==id));
-    fbDel("pagos", id);
+    fbDelR("pagos", id, () => {
+      if(prevData) setPagos(ps=>[...ps,prevData]);
+      showToast("Error al guardar, reintentá");
+    });
   };
 
   /* ─────────────────────────────────────────────────────
@@ -1121,7 +1198,10 @@ function App() {
     const fecha = taskF.date || TODAY;
     const nt={id:uid(),ownerId:CURRENT_USER.id,pid:isAgenda?(taskF.pid||"0"):taskF.pid,rid:null,type:taskF.type,desc:taskF.desc,date:fecha,cost:+(taskF.cost)||0,status:"pendiente",hours:0,pagadoAProveedor:false};
     setTasks(t=>[...t,nt]);
-    fbSet("tasks", nt.id, nt);
+    fbSetR("tasks", nt.id, nt, () => {
+      setTasks(t=>t.filter(x=>x.id!==nt.id));
+      showToast("Error al guardar, reintentá");
+    });
     setShowTM(false); setTaskF({pid:"p1",type:"limpieza",desc:"",date:"",cost:""});
   };
   /* ─────────────────────────────────────────────────────
@@ -1181,7 +1261,10 @@ function App() {
       ...Object.fromEntries(LAUNDRY_ITEMS.map(i=>[i.key,+lavF[i.key]||0])),
     };
     setLaundry(l=>[...l, entry]);
-    fbSet("laundry", entry.id, entry);
+    fbSetR("laundry", entry.id, entry, () => {
+      setLaundry(l=>l.filter(x=>x.id!==entry.id));
+      showToast("Error al guardar, reintentá");
+    });
     setShowLM(false);
     setLavF({rid:res.find(r=>r.co>=TODAY)?.id||"r1",lavId:lavaderos[0]?.id||"lav1",date:"",...emptyItems(),isManual:false,guestManual:"",pidManual:props_[0]?.id||"p1"});
   };
@@ -1191,11 +1274,30 @@ function App() {
   };
   const saveEditLaundry = () => {
     if(!canWrite()) return;
-    { const lu=_laundry.find(l=>l.id===editLaundryId); if(lu){ const upd={...lu,lavId:lavF.lavId,date:lavF.date,isManual:lavF.isManual||false,guestManual:lavF.isManual?(lavF.guestManual||"Recambio"):"",pidManual:lavF.isManual?lavF.pidManual:"0",...Object.fromEntries(LAUNDRY_ITEMS.map(i=>[i.key,+lavF[i.key]||0]))}; fbSet("laundry",editLaundryId,upd); } }
-    setLaundry(ls=>ls.map(l=>l.id===editLaundryId?{...l,lavId:lavF.lavId,date:lavF.date,isManual:lavF.isManual||false,guestManual:lavF.isManual?(lavF.guestManual||"Recambio"):"",pidManual:lavF.isManual?lavF.pidManual:"0",...Object.fromEntries(LAUNDRY_ITEMS.map(i=>[i.key,+lavF[i.key]||0]))}:l));
+    const lu=_laundry.find(l=>l.id===editLaundryId);
+    if(lu) {
+      const prevData = lu;
+      const upd={...lu,lavId:lavF.lavId,date:lavF.date,isManual:lavF.isManual||false,guestManual:lavF.isManual?(lavF.guestManual||"Recambio"):"",pidManual:lavF.isManual?lavF.pidManual:"0",...Object.fromEntries(LAUNDRY_ITEMS.map(i=>[i.key,+lavF[i.key]||0]))};
+      setLaundry(ls=>ls.map(l=>l.id===editLaundryId?upd:l));
+      fbSetR("laundry",editLaundryId,upd,()=>{
+        setLaundry(ls=>ls.map(l=>l.id===editLaundryId?prevData:l));
+        showToast("Error al guardar, reintentá");
+      });
+    }
     setEditLaundryId(null); setLavF({rid:res.find(r=>r.co>=TODAY)?.id||"r1",lavId:lavaderos[0]?.id||"lav1",date:"",...emptyItems(),isManual:false,guestManual:"",pidManual:props_[0]?.id||"p1"});
   };
-  const updTask = (id,status,hours=null) => { if(!canWrite()) return; const t=_tasks.find(x=>x.id===id); if(t) fbSet("tasks",id,{...t,status,...(hours!==null?{hours}:{})}); setTasks(ts=>ts.map(x=>x.id===id?{...x,status,...(hours!==null?{hours}:{})}:x)); };
+  const updTask = (id,status,hours=null) => {
+    if(!canWrite()) return;
+    const t=_tasks.find(x=>x.id===id);
+    if(t) {
+      const upd={...t,status,...(hours!==null?{hours}:{})};
+      setTasks(ts=>ts.map(x=>x.id===id?upd:x));
+      fbSetR("tasks",id,upd,()=>{
+        setTasks(ts=>ts.map(x=>x.id===id?t:x));
+        showToast("Error al guardar, reintentá");
+      });
+    }
+  };
   const checkTask = t => {
     if(t.status==="completado"){ updTask(t.id,"pendiente"); return; }
     if(t.type==="limpieza"||t.type==="limpieza_pre"||t.type==="limpieza_post"){
@@ -1211,10 +1313,14 @@ function App() {
     if(hs <= 0 || vh <= 0) return; // bloqueado — ambos campos son requeridos
     const cost = hs * vh;
     const taskUpd = _tasks.find(x=>x.id===hoursModal.taskId);
-    if(taskUpd) fbSet("tasks", hoursModal.taskId, {...taskUpd, status:"completado", hours:hs, cost});
-    setTasks(t=>t.map(x=>x.id===hoursModal.taskId
-      ? {...x, status:"completado", hours:hs, cost}
-      : x));
+    if(taskUpd) {
+      const upd = {...taskUpd, status:"completado", hours:hs, cost};
+      setTasks(t=>t.map(x=>x.id===hoursModal.taskId?upd:x));
+      fbSetR("tasks", hoursModal.taskId, upd, () => {
+        setTasks(t=>t.map(x=>x.id===hoursModal.taskId?taskUpd:x));
+        showToast("Error al guardar, reintentá");
+      });
+    }
     setHoursModal(null);
   };
 
@@ -2605,7 +2711,7 @@ function App() {
                   onBlur={e=>{
                     if(!canWrite()) return;
                     const v=e.target.value;
-                    fbSet("tasks",t.id,{...t,valorHora:v}); setTasks(ts=>ts.map(x=>x.id===t.id?{...x,valorHora:v}:x));
+                    const prevT=_tasks.find(x=>x.id===t.id)||t; setTasks(ts=>ts.map(x=>x.id===t.id?{...x,valorHora:v}:x)); fbSetR("tasks",t.id,{...t,valorHora:v},()=>{ setTasks(ts=>ts.map(x=>x.id===t.id?prevT:x)); showToast("Error al guardar, reintentá"); });
                   }}
                 />
                 {t.valorHora&&+t.valorHora>0&&<span style={{fontSize:11,color:"#3B6E52",fontWeight:600}}>{$$(+t.valorHora)}/h</span>}
@@ -2752,7 +2858,7 @@ function App() {
                       <span style={{fontSize:11,padding:"3px 9px",borderRadius:20,background:"var(--primary-soft)",color:"var(--primary)",fontWeight:600}}>Completado</span>
                       <button
                         title="Eliminar tarea"
-                        onClick={()=>{ if(!canWrite()) return; if(window.confirm(`¿Eliminar "${t.desc}"? Esta acción no se puede deshacer.`)){ setTasks(ts=>ts.filter(x=>x.id!==t.id)); fbDel("tasks",t.id); } }}
+                        onClick={()=>{ if(!canWrite()) return; if(window.confirm(`¿Eliminar "${t.desc}"? Esta acción no se puede deshacer.`)){ const prevT=_tasks.find(x=>x.id===t.id); setTasks(ts=>ts.filter(x=>x.id!==t.id)); fbDelR("tasks",t.id,()=>{ if(prevT)setTasks(ts=>[...ts,prevT]); showToast("Error al guardar, reintentá"); }); } }}
                         className="fang-btns"
                         style={{...C.btns("d"),padding:"4px 7px",fontSize:12,color:"#C84040",opacity:0.7,flexShrink:0}}>
                         🗑️
@@ -2952,8 +3058,8 @@ function App() {
                         <button onClick={()=>setLavVoucher(l)} className="fang-btns" style={{...C.btns("d"),marginTop:0,width:"100%",fontSize:10,padding:"5px 8px",color:"#B5743E",fontWeight:700}}>🖨️ Ver remito</button>
                         <div style={{display:"flex",gap:5,marginTop:5}}>
                           {canWrite()&&<button onClick={()=>openEditLaundry(l)} className="fang-btns" style={{...C.btns("d"),flex:1,fontSize:10,padding:"5px 6px"}}>✏️ Editar</button>}
-                          {canWrite()&&<button onClick={()=>{ if(!canWrite()) return; if(window.confirm(`¿Devolver el envío de "${info.guest}" y eliminarlo del lavadero? Esta acción no se puede deshacer.`)){ setLaundry(ls=>ls.filter(x=>x.id!==l.id)); fbDel("laundry",l.id); } }} className="fang-btns" style={{...C.btns("d"),flex:1,fontSize:10,padding:"5px 6px",color:"#C84040"}}>← Devolver</button>}
-                          {canWrite()&&<button onClick={()=>{ if(!canWrite()) return; const lu=_laundry.find(x=>x.id===l.id); if(lu) fbSet("laundry",l.id,{...lu,status:"completado"}); setLaundry(ls=>ls.map(x=>x.id===l.id?{...x,status:"completado"}:x)); }} className="fang-btns" style={{...C.btns("p"),flex:1,fontSize:10,padding:"5px 6px"}}>✓ Listo</button>}
+                          {canWrite()&&<button onClick={()=>{ if(!canWrite()) return; if(window.confirm(`¿Devolver el envío de "${info.guest}" y eliminarlo del lavadero? Esta acción no se puede deshacer.`)){ const lx=_laundry.find(x=>x.id===l.id); setLaundry(ls=>ls.filter(x=>x.id!==l.id)); fbDelR("laundry",l.id,()=>{ if(lx)setLaundry(ls=>[...ls,lx]); showToast("Error al guardar, reintentá"); }); } }} className="fang-btns" style={{...C.btns("d"),flex:1,fontSize:10,padding:"5px 6px",color:"#C84040"}}>← Devolver</button>}
+                          {canWrite()&&<button onClick={()=>{ if(!canWrite()) return; const lu=_laundry.find(x=>x.id===l.id); if(lu){ setLaundry(ls=>ls.map(x=>x.id===l.id?{...x,status:"completado"}:x)); fbSetR("laundry",l.id,{...lu,status:"completado"},()=>{ setLaundry(ls=>ls.map(x=>x.id===l.id?lu:x)); showToast("Error al guardar, reintentá"); }); } }} className="fang-btns" style={{...C.btns("p"),flex:1,fontSize:10,padding:"5px 6px"}}>✓ Listo</button>}
                         </div>
                       </div>
                     );
@@ -2992,7 +3098,7 @@ function App() {
                         <button onClick={()=>setLavVoucher(l)} className="fang-btns" style={{...C.btns("d"),marginTop:0,width:"100%",fontSize:10,padding:"5px 8px",color:"#B5743E",fontWeight:700}}>🖨️ Ver remito</button>
                         <div style={{display:"flex",gap:5,marginTop:5}}>
                           <button onClick={()=>openEditLaundry(l)} className="fang-btns" style={{...C.btns("d"),flex:1,fontSize:10,padding:"5px 6px"}}>✏️ Editar</button>
-                          <button onClick={()=>{ if(!canWrite()) return; if(window.confirm(`¿Volver a enviar "${info.guest}" al lavadero? Pasará de Completado a En el lavadero.`)){ const lu=_laundry.find(x=>x.id===l.id); if(lu) fbSet("laundry",l.id,{...lu,status:"en_lavadero"}); setLaundry(ls=>ls.map(x=>x.id===l.id?{...x,status:"en_lavadero"}:x)); } }} className="fang-btns" style={{...C.btns("d"),flex:1,fontSize:10,padding:"5px 6px",color:"var(--primary)"}}>← Devolver</button>
+                          <button onClick={()=>{ if(!canWrite()) return; if(window.confirm(`¿Volver a enviar "${info.guest}" al lavadero? Pasará de Completado a En el lavadero.`)){ const lu=_laundry.find(x=>x.id===l.id); if(lu){ setLaundry(ls=>ls.map(x=>x.id===l.id?{...x,status:"en_lavadero"}:x)); fbSetR("laundry",l.id,{...lu,status:"en_lavadero"},()=>{ setLaundry(ls=>ls.map(x=>x.id===l.id?lu:x)); showToast("Error al guardar, reintentá"); }); } } }} className="fang-btns" style={{...C.btns("d"),flex:1,fontSize:10,padding:"5px 6px",color:"var(--primary)"}}>← Devolver</button>
                         </div>
                       </div>
                     );
@@ -3769,7 +3875,7 @@ function App() {
             : "otro",
         desc:t.desc, acreedor:"", amt:t.cost, date:t.date, pid:t.pid,
         pagado: !!t.pagadoAProveedor, auto:true,
-        handleToggle: ()=>{ if(!canWrite()) return; fbSet("tasks",t.id,{...t,pagadoAProveedor:!t.pagadoAProveedor}); setTasks(ts=>ts.map(x=>x.id===t.id?{...x,pagadoAProveedor:!x.pagadoAProveedor}:x)); }
+        handleToggle: ()=>{ if(!canWrite()) return; setTasks(ts=>ts.map(x=>x.id===t.id?{...x,pagadoAProveedor:!x.pagadoAProveedor}:x)); fbSetR("tasks",t.id,{...t,pagadoAProveedor:!t.pagadoAProveedor},()=>{ setTasks(ts=>ts.map(x=>x.id===t.id?t:x)); showToast("Error al guardar, reintentá"); }); }
       }));
 
     // Solo lavaderos COMPLETADOS
@@ -3782,7 +3888,7 @@ function App() {
           desc:`Lavadero - ${info2.guest}${l.isManual?" (recambio)":""}`, acreedor:lv.name,
           amt:calcLavTotal(l,getLavPrices(l.lavId)), date:l.date, pid:info2.prop.id||0,
           pagado: !!l.pagadoAProveedor, auto:true,
-          handleToggle: ()=>{ if(!canWrite()) return; const lu=_laundry.find(x=>x.id===l.id); if(lu) fbSet("laundry",l.id,{...lu,pagadoAProveedor:!lu.pagadoAProveedor}); setLaundry(ls=>ls.map(x=>x.id===l.id?{...x,pagadoAProveedor:!x.pagadoAProveedor}:x)); }
+          handleToggle: ()=>{ if(!canWrite()) return; const lu=_laundry.find(x=>x.id===l.id); if(lu){ setLaundry(ls=>ls.map(x=>x.id===l.id?{...x,pagadoAProveedor:!x.pagadoAProveedor}:x)); fbSetR("laundry",l.id,{...lu,pagadoAProveedor:!lu.pagadoAProveedor},()=>{ setLaundry(ls=>ls.map(x=>x.id===l.id?lu:x)); showToast("Error al guardar, reintentá"); }); } }
         };
       });
 
@@ -5897,10 +6003,21 @@ function App() {
       if(isNew){
         const np2={id:uid(),ownerId:CURRENT_USER.id,desc:snapshot.desc,acreedor:snapshot.acreedor,amt:snapshot.amt,date:snapshot.date,pid:snapshot.pid,tipo:snapshot.tipo,pagado:false};
         setPagos(ps=>[...ps,np2]);
-        fbSet("pagos", np2.id, np2);
+        fbSetR("pagos", np2.id, np2, () => {
+          setPagos(ps=>ps.filter(x=>x.id!==np2.id));
+          showToast("Error al guardar, reintentá");
+        });
       } else {
-        const pu=_pagos.find(p=>p.id===editPagoId); if(pu) fbSet("pagos",editPagoId,{...pu,desc:snapshot.desc,acreedor:snapshot.acreedor,amt:snapshot.amt,date:snapshot.date,pid:snapshot.pid,tipo:snapshot.tipo});
-        setPagos(ps=>ps.map(p=>p.id===editPagoId?{...p,desc:snapshot.desc,acreedor:snapshot.acreedor,amt:snapshot.amt,date:snapshot.date,pid:snapshot.pid,tipo:snapshot.tipo}:p));
+        const pu=_pagos.find(p=>p.id===editPagoId);
+        if(pu) {
+          const prevPu=pu;
+          const u={...pu,desc:snapshot.desc,acreedor:snapshot.acreedor,amt:snapshot.amt,date:snapshot.date,pid:snapshot.pid,tipo:snapshot.tipo};
+          setPagos(ps=>ps.map(p=>p.id===editPagoId?u:p));
+          fbSetR("pagos",editPagoId,u,()=>{
+            setPagos(ps=>ps.map(p=>p.id===editPagoId?prevPu:p));
+            showToast("Error al guardar, reintentá");
+          });
+        }
         setEditPagoId(null);
       }
       // Cerrar modal y resetear form
@@ -7216,6 +7333,11 @@ function App() {
           </div>
         );
       })()}
+      {toast&&(
+        <div style={{position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",background:"#C84040",color:"#fff",padding:"12px 22px",borderRadius:10,fontSize:14,fontWeight:600,boxShadow:"0 4px 20px rgba(0,0,0,0.3)",zIndex:9999,pointerEvents:"none",whiteSpace:"nowrap"}}>
+          ⚠️ {toast}
+        </div>
+      )}
     </>
   );
 }
