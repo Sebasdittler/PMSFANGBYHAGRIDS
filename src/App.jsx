@@ -335,12 +335,6 @@ function useReservas(showToast) {
     );
   }, []);
 
-  // res ya filtrado por usuario — admin ve todo, owner ve solo los suyos
-  const res = filterByUser(_res);
-
-  // Getter centralizado (preparado para Firebase)
-  const getReservas = () => res;
-
   // Agrega una reserva nueva
   const saveReserva = async (reserva) => {
     if(!canWrite() && !canAddReservation()) return;
@@ -440,7 +434,7 @@ function useReservas(showToast) {
     });
   };
 
-  return { res, getReservas, saveReserva, updateReserva, deleteReserva, registerPayment, removeLastPayment };
+  return { res: _res, saveReserva, updateReserva, deleteReserva, registerPayment, removeLastPayment };
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -471,7 +465,8 @@ function App() {
   const [toast, setToast] = useState(null);
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(null), 4000); };
   useEffect(() => { window._onFbError = showToast; }, []);
-  const { res, getReservas, saveReserva, updateReserva, deleteReserva, registerPayment, removeLastPayment } = useReservas(showToast);
+  const { res: _allRes, saveReserva, updateReserva, deleteReserva, registerPayment, removeLastPayment } = useReservas(showToast);
+  const res = useMemo(() => filterByUser(_allRes), [_allRes]);
   const [_tasks,   setTasks]  = useState([]);
   const [lavaderos, setLavaderos] = useState([]);
   const [_laundry, setLaundry]= useState([]);
