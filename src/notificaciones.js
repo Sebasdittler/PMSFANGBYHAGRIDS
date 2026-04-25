@@ -57,6 +57,10 @@ export function notificarNuevaReserva(reserva, propiedadNombre, usuarioEmail) {
   return enviarNotificacion('🏠 Nueva reserva', reserva, propiedadNombre, usuarioEmail);
 }
 
+export function notificarNuevaReservaIcal(reserva, propiedadNombre) {
+  return enviarNotificacion('📅 Nueva reserva iCal', reserva, propiedadNombre, 'iCal');
+}
+
 export function notificarReservaModificada(reserva, propiedadNombre, usuarioEmail) {
   return enviarNotificacion('✏️ Reserva modificada', reserva, propiedadNombre, usuarioEmail);
 }

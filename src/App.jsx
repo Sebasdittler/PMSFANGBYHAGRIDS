@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { notificarNuevaReserva, notificarReservaModificada, notificarReservaEliminada } from './notificaciones';
+import { notificarNuevaReserva, notificarReservaModificada, notificarReservaEliminada, notificarNuevaReservaIcal } from './notificaciones';
 import SitioWeb from './SitioWeb';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -954,16 +954,24 @@ function App() {
       const results = await Promise.all(urls.map((url, idx) => fetchOneIcalUrl(url, prop, idx)));
       const parsed = results.flat();
 
-      // Detectar reservas realmente nuevas (ids que no existían antes)
+      // Detectar reservas realmente nuevas (ids que no existían antes en externalRes ni en Firestore)
       setExternalRes(prev => {
-        const prevIds = new Set(prev.filter(r=>r.pid===prop.id).map(r=>r.id));
-        const nuevas  = parsed.filter(r=>!prevIds.has(r.id));
+        const prevIds  = new Set(prev.filter(r=>r.pid===prop.id).map(r=>r.id));
+        const savedIds = new Set(res.map(r=>r.id));
+        const nuevas   = parsed.filter(r=>!prevIds.has(r.id) && !savedIds.has(r.id));
         if(nuevas.length > 0) {
           nuevas.forEach(r => {
+            // Guardar en Firestore para que bloquee fechas entre sesiones
+            fbSet("reservas", r.id, {...r, ownerId:"system", paidAmount:0, payments:[]});
+            // Push notification
             sendNotification(
               `📅 Nueva reserva iCal — ${prop.name}`,
               `${r.guest||"Huésped"} · ${fmtD(r.ci)} → ${fmtD(r.co)}`
             );
+            // Email notification — solo para reservas reales, no para bloqueos genéricos
+            if(!/bloqueado|blocked/i.test(r.guest||"")) {
+              notificarNuevaReservaIcal(r, prop.name);
+            }
           });
         }
         return [...prev.filter(r=>r.pid!==prop.id), ...parsed];
@@ -989,7 +997,7 @@ function App() {
   // Sincroniza iCals cuando las propiedades llegan de Firestore (no al montar, cuando props_ aún está vacío)
   useEffect(()=>{
     if(props_.length > 0 && props_.some(p=>getIcalUrls(p).length > 0)) syncAllIcals();
-  }, [props_.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [props_]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Detectar mobile en tiempo real
   useEffect(()=>{
@@ -1050,10 +1058,11 @@ function App() {
     const manuals = res
       .filter(r => r.id!==excludeId && r.pid===pid && r.ci<co && r.co>ci)
       .map(r => ({...r, _external: false}));
+    const savedIds = new Set(res.map(r=>r.id));
     const externals = externalRes
       .map(r => ({...r, ci:r.ci||r.start||"", co:r.co||r.end||"", pid:r.pid??r.propertyId??"0",
                   guest:r.guest||r.summary||"🔒 Bloqueado", _external:true}))
-      .filter(r => r.pid===pid && r.ci<co && r.co>ci);
+      .filter(r => !savedIds.has(r.id) && r.pid===pid && r.ci<co && r.co>ci);
     return [...manuals, ...externals];
   };
 
@@ -2207,11 +2216,12 @@ function App() {
       external: true,
     });
 
+    const resIds = new Set(res.map(r=>r.id));
     const visRes=[
       ...res.filter(r=>r.ci<=visLast&&r.co>=visFirst&&(calFilterPids.size===0||calFilterPids.has(r.pid))),
       ...externalRes
           .map(normalizeExt)
-          .filter(r=>r.ci<=visLast&&r.co>=visFirst&&(calFilterPids.size===0||calFilterPids.has(r.pid))),
+          .filter(r=>!resIds.has(r.id)&&r.ci<=visLast&&r.co>=visFirst&&(calFilterPids.size===0||calFilterPids.has(r.pid))),
     ];
     const allBars=[];
     visRes.forEach(r=>{
