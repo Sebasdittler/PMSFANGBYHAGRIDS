@@ -142,7 +142,10 @@ window.seedFirestore = async function(state) {
 ══════════════════════════════════════════════════════════ */
 // uid() — generador de IDs únicos como strings. Reemplaza contadores numéricos.
 // Compatible con Firestore: se puede reemplazar por doc(collection(db,"col")).id en la migración.
-const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const uid = () =>
+  (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
+    ? crypto.randomUUID()
+    : Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
 
 // ── Firebase write helpers — no-op si Firebase no está listo ──
 const fbSet = (col, id, data) => {
@@ -1431,7 +1434,7 @@ function App() {
           return {desc:`Lavadero - ${info.guest||""}`,fecha:l.date,monto:calcLavTotal(l,getLavPrices(l.lavId))};
         }),
       ].filter(x=>x.monto>0).sort((a,b)=>a.fecha.localeCompare(b.fecha));
-      return {mes,label:MONTHS[i],rr,incARS,incUSD,comARS,comUSD,costos,reservas:rr.length,diasOcMes,diasEnMes,ocupMes:Math.round((diasOcMes/diasEnMes)*100),costItems};
+      return {mes,label:MONTHS[i],rr,incARS,incUSD,comARS,comUSD,costos,reservas:rr.length,diasOcMes,diasEnMes,ocupMes:diasEnMes>0?Math.round((diasOcMes/diasEnMes)*100):0,costItems};
     });
     const totIncARS=meses.reduce((s,m)=>s+m.incARS,0);
     const totIncUSD=meses.reduce((s,m)=>s+m.incUSD,0);
