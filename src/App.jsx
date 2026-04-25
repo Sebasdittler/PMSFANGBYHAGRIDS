@@ -833,7 +833,8 @@ function App() {
   // Proxies CORS públicos — se prueban en orden si el primero falla
   const CORS_PROXIES = [
     "https://corsproxy.io/?",
-    "https://api.allorigins.win/raw?url=",
+    "https://thingproxy.freeboard.io/fetch/",
+    "https://api.codetabs.com/v1/proxy?quest=",
   ];
 
   // Hace fetch de una URL iCal individual y devuelve los eventos parseados (o [])
@@ -2357,7 +2358,7 @@ function App() {
                   {lastSyncTime.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}
                 </span>}
                 {Object.values(icalStatus).some(s=>s==="error")&&!Object.values(icalStatus).some(s=>s==="loading")&&
-                  <span style={{fontSize:9,color:"#C84040",whiteSpace:"nowrap"}}>⚠️ Error</span>}
+                  <span style={{fontSize:9,color:"#C84040",whiteSpace:"nowrap"}}>⚠️ Error iCal: {Object.entries(icalStatus).filter(([,s])=>s==="error").map(([pid])=>props_.find(p=>p.id===pid)?.name||pid).join(", ")}</span>}
               </div>
             )}
           </div>
