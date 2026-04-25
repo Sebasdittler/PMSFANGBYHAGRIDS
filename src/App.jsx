@@ -5557,7 +5557,7 @@ function App() {
     const paxNum = +resF.pax||0;
     const paxExcede = capacidad>0 && paxNum>capacidad;
     const fechasValidas = resF.ci && resF.co && resF.ci < resF.co;
-    const montoValido = +resF.amt > 0;
+    const montoValido = +resF.amt >= 0 && resF.amt !== "";
     const seniaValida = !resF.senia || !resF.amt || +resF.senia <= +resF.amt;
     const comisionValida = (resF.comisionMode||"porcentaje")==="valorAgregado"
       ? (+(resF.precioOwner) >= 0 && +(resF.precioOwner) <= +(resF.amt))
@@ -7020,7 +7020,7 @@ function App() {
         const editPaxNum = +resF.pax||0;
         const editPaxExcede = editCap>0 && editPaxNum>editCap;
         const editFechasValidas = resF.ci && resF.co && resF.ci < resF.co;
-        const editMontoValido = +resF.amt > 0;
+        const editMontoValido = +resF.amt >= 0 && resF.amt !== "";
         const editSeniaValida = !resF.senia || !resF.amt || +resF.senia <= +resF.amt;
         const editComisionValida = (resF.comisionMode||"porcentaje")==="valorAgregado"
           ? (+(resF.precioOwner) >= 0 && +(resF.precioOwner) <= +(resF.amt))
