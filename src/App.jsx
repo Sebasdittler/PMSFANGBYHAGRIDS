@@ -148,12 +148,12 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 const fbSet = (col, id, data) => {
   if(!window._fbReady || !window._db) return;
   window._db.collection(col).doc(String(id)).set(data)
-    .catch(e => console.error("[FB set]", col, id, e));
+    .catch(e => { console.error("[FB set]", col, id, e); window._onFbError?.("Error al guardar, reintentá"); });
 };
 const fbDel = (col, id) => {
   if(!window._fbReady || !window._db) return;
   window._db.collection(col).doc(String(id)).delete()
-    .catch(e => console.error("[FB del]", col, id, e));
+    .catch(e => { console.error("[FB del]", col, id, e); window._onFbError?.("Error al guardar, reintentá"); });
 };
 // Variantes con rollback: llaman onErr() si la escritura en Firestore falla
 const fbSetR = (col, id, data, onErr) => {
@@ -341,23 +341,19 @@ function useReservas(showToast) {
   // Agrega una reserva nueva
   const saveReserva = async (reserva) => {
     if(!canWrite() && !canAddReservation()) return;
+    const seniaNorm = +(reserva.senia)||0;
+    const normalized = {
+      ...reserva,
+      ownerId: CURRENT_USER.id,
+      paidAmount: seniaNorm,
+      payments: seniaNorm > 0
+        ? [{amount: seniaNorm, date: reserva.seniaDate || TODAY_BOOT, method: "Seña"}]
+        : [],
+    };
+    setRes(prev => [...prev, normalized]);
     try {
-      const seniaNorm = +(reserva.senia)||0;
-      const normalized = {
-        ...reserva,
-        ownerId: CURRENT_USER.id,
-        paidAmount: seniaNorm,
-        payments: seniaNorm > 0
-          ? [{amount: seniaNorm, date: reserva.seniaDate || TODAY_BOOT, method: "Seña"}]
-          : [],
-      };
-      setRes(prev => [...prev, normalized]);
-      fbSetR("reservas", normalized.id, normalized, () => {
-        setRes(prev => prev.filter(r => r.id !== normalized.id));
-        showToast?.("Error al guardar, reintentá");
-      });
-
-      // Notificación al guardar reserva nueva
+      if(window._fbReady && window._db)
+        await window._db.collection("reservas").doc(String(normalized.id)).set(normalized);
       const cur  = reserva.cur === "USD" ? "USD" : "ARS";
       const monto= cur === "USD" ? `USD ${+(reserva.amt)||0}` : `ARS ${(+(reserva.amt)||0).toLocaleString("es-AR")}`;
       const quien= CURRENT_USER.role === "owner" ? ` · cargada por ${CURRENT_USER.email}` : "";
@@ -367,6 +363,8 @@ function useReservas(showToast) {
       );
     } catch(e) {
       console.error("[useReservas] Error al guardar reserva:", e);
+      setRes(prev => prev.filter(r => r.id !== normalized.id));
+      showToast?.("Error al guardar, reintentá");
       throw e;
     }
   };
@@ -469,6 +467,7 @@ function App() {
   const [props_,  setProps_] = useState([]);
   const [toast, setToast] = useState(null);
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(null), 4000); };
+  useEffect(() => { window._onFbError = showToast; }, []);
   const { res, getReservas, saveReserva, updateReserva, deleteReserva, registerPayment, removeLastPayment } = useReservas(showToast);
   const [_tasks,   setTasks]  = useState([]);
   const [lavaderos, setLavaderos] = useState([]);
@@ -1118,12 +1117,16 @@ function App() {
     const nr={id:uid(),pid:resF.pid,guest:resF.guest,tel:resF.tel||"",plat:resF.plat,ci:resF.ci,co:resF.co,
               amt:+(resF.amt)||0,cur:resF.cur,senia:+(resF.senia)||0,seniaDate:resF.seniaDate||"",pax:+(resF.pax)||0,bebes:+(resF.bebes)||0,nota:resF.nota||"",comision:+(resF.comision)||0,comisionMode:resF.comisionMode||"porcentaje",precioOwner:+(resF.precioOwner)||0};
     const newTasks = makeResTasks(nr, resF.taskPre, resF.taskPost);
-    await saveReserva(nr);
-    const propNombre = props_.find(p => p.id === nr.pid)?.name || nr.pid;
-    notificarNuevaReserva(nr, propNombre, CURRENT_USER.email);
-    setTasks(t=>[...t,...newTasks]);
-    newTasks.forEach(t => fbSet("tasks", t.id, t));
-    setShowRM(false); setResF({pid:"p1",guest:"",tel:"",plat:"Airbnb",ci:"",co:"",amt:"",cur:"ARS",senia:"",seniaDate:"",pax:"",bebes:"",nota:"",comision:comisionPct,comisionMode:"porcentaje",precioOwner:"",taskPre:false,taskPost:true});
+    try {
+      await saveReserva(nr);
+      const propNombre = props_.find(p => p.id === nr.pid)?.name || nr.pid;
+      notificarNuevaReserva(nr, propNombre, CURRENT_USER.email);
+      setTasks(t=>[...t,...newTasks]);
+      newTasks.forEach(t => fbSet("tasks", t.id, t));
+      setShowRM(false); setResF({pid:"p1",guest:"",tel:"",plat:"Airbnb",ci:"",co:"",amt:"",cur:"ARS",senia:"",seniaDate:"",pax:"",bebes:"",nota:"",comision:comisionPct,comisionMode:"porcentaje",precioOwner:"",taskPre:false,taskPost:true});
+    } catch(e) {
+      // saveReserva ya revirtió el estado y mostró el toast
+    }
   };
   const openEditRes = r => {
     const hasPreTask  = tasks.some(t=>t.rid===r.id&&t.type==="limpieza_pre");
