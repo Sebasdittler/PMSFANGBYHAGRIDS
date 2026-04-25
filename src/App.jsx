@@ -820,8 +820,8 @@ function App() {
     return true;
   });
   const _mesActualDash = TODAY.slice(0,7);
-  const marchARS   = res.filter(r=>r.ci.startsWith(_mesActualDash)&&r.cur==="ARS").reduce((s,r)=>s+getComision(r),0);
-  const marchUSD   = res.filter(r=>r.ci.startsWith(_mesActualDash)&&r.cur==="USD").reduce((s,r)=>s+getComision(r),0);
+  const marchARS   = res.filter(r=>(r.ci||"").startsWith(_mesActualDash)&&r.cur==="ARS").reduce((s,r)=>s+getComision(r),0);
+  const marchUSD   = res.filter(r=>(r.ci||"").startsWith(_mesActualDash)&&r.cur==="USD").reduce((s,r)=>s+getComision(r),0);
 
   // Cumpleaños: hoy y próximos 7 días — ahora por propietario individual
   const cumplehoy = [];
@@ -1334,9 +1334,9 @@ function App() {
     const p=gp(rPid);
     // Criterio único: la reserva pertenece al mes de su check-in.
     // Evita que reservas que cruzan meses aparezcan en dos reportes.
-    const rr=res.filter(r=>r.pid===rPid&&r.ci.startsWith(rMonth));
+    const rr=res.filter(r=>r.pid===rPid&&(r.ci||"").startsWith(rMonth));
     // Señas: pagos parciales recibidos este mes, cuya reserva puede estar en otro período
-    const senias=res.filter(r=>r.pid===rPid&&(r.paidAmount||0)>0&&r.seniaDate&&r.seniaDate.startsWith(rMonth)&&!r.ci.startsWith(rMonth));
+    const senias=res.filter(r=>r.pid===rPid&&(r.paidAmount||0)>0&&r.seniaDate&&r.seniaDate.startsWith(rMonth)&&!(r.ci||"").startsWith(rMonth));
     const tt=tasks.filter(t=>t.pid===rPid&&t.date.startsWith(rMonth)&&t.status==="completado");
     const gg=gastos.filter(g=>g.pid===rPid&&g.date.startsWith(rMonth));
     const rrIds=rr.map(r=>r.id);
@@ -1395,7 +1395,7 @@ function App() {
         const end=co>mEnd?mEnd:co;
         if(end>start) diasOcMes+=Math.round((end-start)/(1000*60*60*24));
       });
-      const rr=res.filter(r=>r.pid===rPid&&r.ci.startsWith(mes));
+      const rr=res.filter(r=>r.pid===rPid&&(r.ci||"").startsWith(mes));
       const tt=tasks.filter(t=>t.pid===rPid&&t.date.startsWith(mes)&&t.status==="completado");
       const gg=gastos.filter(g=>g.pid===rPid&&g.date.startsWith(mes));
       const lavItems=laundry.filter(l=>{
@@ -1770,7 +1770,7 @@ function App() {
         {res.filter(r=>r.ci<=TODAY&&r.co>TODAY).length===0&&(
           <div style={{fontSize:13,color:T.textMut,padding:"18px 0",textAlign:"center"}}>Sin reservas activas hoy</div>
         )}
-        {[...res].filter(r=>r.ci<=TODAY&&r.co>TODAY).sort((a,b)=>a.ci.localeCompare(b.ci)).map(r=>{
+        {[...res].filter(r=>r.ci<=TODAY&&r.co>TODAY).sort((a,b)=>(a.ci||"").localeCompare(b.ci||"")).map(r=>{
           const p=gp(r.pid);
           const menuOpen = resMenuId===r.id;
           const fmtAmt = v => r.cur==="USD"?$$usd(v):$$(v);
@@ -1867,7 +1867,7 @@ function App() {
 
       {/* ── RESERVAS FUTURAS ── */}
       {(()=>{
-        const futAll = [...res].filter(r=>r.ci>TODAY).sort((a,b)=>a.ci.localeCompare(b.ci));
+        const futAll = [...res].filter(r=>r.ci>TODAY).sort((a,b)=>(a.ci||"").localeCompare(b.ci||""));
         const futVis = futurasPid ? futAll.filter(r=>r.pid===futurasPid) : futAll;
         const propsConFuturas = props_.filter(p=>futAll.some(r=>r.pid===p.id));
         return (
@@ -3001,7 +3001,7 @@ function App() {
             {/* Col 1: Pendientes de envío */}
             {(()=>{
               const sentRids=new Set(laundry.map(l=>l.rid));
-              const active=res.filter(r=>r.co>=TODAY&&!sentRids.has(r.id)).sort((a,b)=>a.co.localeCompare(b.co));
+              const active=res.filter(r=>r.co>=TODAY&&!sentRids.has(r.id)).sort((a,b)=>(a.co||"").localeCompare(b.co||""));
               return (
                 <div style={{background:T.bgInput,borderRadius:16,padding:"18px"}}>
                   <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:T.textMut,marginBottom:12,display:"flex",alignItems:"center",gap:7}}>
@@ -4007,12 +4007,12 @@ function App() {
       reportesMeses.forEach(mes=>{
         const id=`${p.id}-${mes}`;
         // Mismo criterio que rep useMemo: solo ci del mes (evita doble conteo)
-        const tieneRes  = res.some(r=>r.pid===p.id&&r.ci.startsWith(mes));
+        const tieneRes  = res.some(r=>r.pid===p.id&&(r.ci||"").startsWith(mes));
         const tieneTasks= tasks.some(t=>t.pid===p.id&&t.date.startsWith(mes)&&t.status==="completado"&&t.cost>0);
         const tieneGas  = gastos.some(g=>g.pid===p.id&&g.date.startsWith(mes));
         if(!tieneRes&&!tieneTasks&&!tieneGas) return;
-        const inARS = res.filter(r=>r.pid===p.id&&r.ci.startsWith(mes)&&r.cur==="ARS").reduce((s,r)=>s+r.amt,0);
-        const inUSD = res.filter(r=>r.pid===p.id&&r.ci.startsWith(mes)&&r.cur==="USD").reduce((s,r)=>s+r.amt,0);
+        const inARS = res.filter(r=>r.pid===p.id&&(r.ci||"").startsWith(mes)&&r.cur==="ARS").reduce((s,r)=>s+r.amt,0);
+        const inUSD = res.filter(r=>r.pid===p.id&&(r.ci||"").startsWith(mes)&&r.cur==="USD").reduce((s,r)=>s+r.amt,0);
         const costos= tasks.filter(t=>t.pid===p.id&&t.date.startsWith(mes)&&t.status==="completado").reduce((s,t)=>s+t.cost,0)
                      +gastos.filter(g=>g.pid===p.id&&g.date.startsWith(mes)).reduce((s,g)=>s+g.amt,0)
                      +laundry.filter(l=>{ const pid2=l.isManual?l.pidManual:gr(l.rid).pid; return pid2===p.id&&l.date.startsWith(mes);}).reduce((s,l)=>s+calcLavTotal(l,getLavPrices(l.lavId)),0);
