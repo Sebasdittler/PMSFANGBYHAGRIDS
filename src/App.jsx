@@ -5416,10 +5416,14 @@ function App() {
     const mode = resF.comisionMode || "porcentaje";
     const amtNum  = +(resF.amt) || 0;
     const ownerNum = +(resF.precioOwner) || 0;
+    const comisionNum = +(resF.comision);
     const ganancia = Math.max(0, amtNum - ownerNum);
     const pct = amtNum > 0 ? Math.round(ganancia / amtNum * 1000) / 10 : 0;
     const fmtV = v => resF.cur === "USD" ? $$usd(v) : $$(v);
-    const ownerInvalid = ownerNum > 0 && amtNum > 0 && ownerNum > amtNum;
+    const comisionInvalid = resF.comision !== "" && (comisionNum < 0 || comisionNum > 100);
+    const ownerNegative  = ownerNum < 0;
+    const ownerExcede    = ownerNum > 0 && amtNum > 0 && ownerNum > amtNum;
+    const ownerInvalid   = ownerNegative || ownerExcede;
     return (
       <div style={{marginBottom:14}}>
         <label style={{...C.lbl,marginBottom:8}}>Comisión Hagrids</label>
@@ -5439,18 +5443,25 @@ function App() {
         </div>
         {/* Modo porcentaje */}
         {mode === "porcentaje" && (
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <input type="text" inputMode="numeric"
-              style={{...C.inp,marginBottom:0,width:80,textAlign:"center",fontWeight:700}}
-              placeholder="10" value={resF.comision}
-              onChange={e=>setResF(f=>({...f,comision:e.target.value}))}/>
-            <span style={{fontSize:13,color:T.textSub}}>%</span>
-            {resF.amt && +resF.comision > 0 && (
-              <span style={{fontSize:13,color:"#B5743E",fontWeight:700}}>
-                = {resF.cur==="USD"
-                  ? $$usd(Math.round(+resF.amt * +resF.comision / 100))
-                  : $$(Math.round(+resF.amt * +resF.comision / 100))}
-              </span>
+          <div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <input type="text" inputMode="numeric"
+                style={{...C.inp,marginBottom:0,width:80,textAlign:"center",fontWeight:700,borderColor:comisionInvalid?"#C84040":T.border}}
+                placeholder="10" value={resF.comision}
+                onChange={e=>setResF(f=>({...f,comision:e.target.value}))}/>
+              <span style={{fontSize:13,color:T.textSub}}>%</span>
+              {resF.amt && +resF.comision > 0 && !comisionInvalid && (
+                <span style={{fontSize:13,color:"#B5743E",fontWeight:700}}>
+                  = {resF.cur==="USD"
+                    ? $$usd(Math.round(+resF.amt * +resF.comision / 100))
+                    : $$(Math.round(+resF.amt * +resF.comision / 100))}
+                </span>
+              )}
+            </div>
+            {comisionInvalid && (
+              <div style={{fontSize:12,color:"#C84040",marginTop:6}}>
+                ⚠️ La comisión debe estar entre 0% y 100%
+              </div>
             )}
           </div>
         )}
@@ -5463,7 +5474,12 @@ function App() {
               placeholder={resF.cur==="USD"?"Ej: 500":"Ej: 130000"}
               value={resF.precioOwner}
               onChange={e=>setResF(f=>({...f,precioOwner:e.target.value}))}/>
-            {ownerInvalid && (
+            {ownerNegative && (
+              <div style={{fontSize:12,color:"#C84040",marginTop:-10,marginBottom:8}}>
+                ⚠️ El precio al propietario no puede ser negativo
+              </div>
+            )}
+            {ownerExcede && (
               <div style={{fontSize:12,color:"#C84040",marginTop:-10,marginBottom:8}}>
                 ⚠️ El precio al propietario no puede superar el monto al huésped
               </div>
@@ -5521,7 +5537,9 @@ function App() {
     const fechasValidas = resF.ci && resF.co && resF.ci < resF.co;
     const montoValido = +resF.amt > 0;
     const seniaValida = !resF.senia || !resF.amt || +resF.senia <= +resF.amt;
-    const comisionValida = (resF.comisionMode||"porcentaje")==="valorAgregado" ? (+(resF.precioOwner)>0 && +(resF.precioOwner)<=+(resF.amt)) : true;
+    const comisionValida = (resF.comisionMode||"porcentaje")==="valorAgregado"
+      ? (+(resF.precioOwner) >= 0 && +(resF.precioOwner) <= +(resF.amt))
+      : (resF.comision === "" || (+(resF.comision) >= 0 && +(resF.comision) <= 100));
     const canSave = resF.guest && resF.tel && resF.pax && !paxExcede && fechasValidas && montoValido && seniaValida && comisionValida;
     const handleTrySubmit = () => {
       if(canSave){ addRes(); return; }
@@ -6979,7 +6997,9 @@ function App() {
         const editFechasValidas = resF.ci && resF.co && resF.ci < resF.co;
         const editMontoValido = +resF.amt > 0;
         const editSeniaValida = !resF.senia || !resF.amt || +resF.senia <= +resF.amt;
-        const editComisionValida = (resF.comisionMode||"porcentaje")==="valorAgregado" ? (+(resF.precioOwner)>0 && +(resF.precioOwner)<=+(resF.amt)) : true;
+        const editComisionValida = (resF.comisionMode||"porcentaje")==="valorAgregado"
+          ? (+(resF.precioOwner) >= 0 && +(resF.precioOwner) <= +(resF.amt))
+          : (resF.comision === "" || (+(resF.comision) >= 0 && +(resF.comision) <= 100));
         const canSave=resF.guest&&resF.tel&&resF.pax&&!editPaxExcede&&editFechasValidas&&editMontoValido&&editSeniaValida&&editComisionValida;
         const req=<span style={{color:"#C84040",marginLeft:2}}>*</span>;
         return (
