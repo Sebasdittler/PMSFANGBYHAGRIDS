@@ -518,7 +518,7 @@ function App() {
   const isOwner = CURRENT_USER.role === "owner";
   const allowedProps = useMemo(() =>
     isOwner ? props_.filter(p => CURRENT_USER.propIds.includes(p.id)) : props_,
-    [props_]
+    [props_, isOwner, CURRENT_USER.propIds] // eslint-disable-line react-hooks/exhaustive-deps
   );
   const isOwnedRecord = pid => !isOwner || allowedProps.some(p => p.id === pid);
   const tasks   = useMemo(() => filterByUser(_tasks),   [_tasks]);
@@ -6362,7 +6362,10 @@ function App() {
     <div className="fang-overlay" style={C.ov} onClick={e=>e.target===e.currentTarget&&setShowPrM(false)}>
       <div className="fang-modal" style={{...C.mod,maxWidth:460}}>
         <div style={{fontFamily:"'Cinzel',serif",fontSize:19,fontWeight:700,marginBottom:6}}>💲 Precios del lavadero</div>
-        <div style={{fontSize:13,color:T.textSub,marginBottom:18}}>Precio por unidad de cada artículo (ARS).</div>
+        <div style={{fontSize:13,color:T.textSub,marginBottom:12}}>Precio por unidad de cada artículo (ARS).</div>
+        <div style={{background:"#FFF3CD",border:"1px solid #FFD970",borderRadius:6,padding:"8px 12px",fontSize:12,color:"#7D5A00",marginBottom:14}}>
+          ⚠️ Este cambio aplica solo a lavaderos nuevos. Los ya registrados conservan los precios con los que fueron creados.
+        </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
           {LAUNDRY_ITEMS.map(item=>(
             <div key={item.key}>
