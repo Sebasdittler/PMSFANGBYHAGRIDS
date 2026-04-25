@@ -351,6 +351,10 @@ function useReservas(showToast) {
     try {
       if(window._fbReady && window._db)
         await window._db.collection("reservas").doc(String(normalized.id)).set(normalized);
+      if(window._fbReady && window._db)
+        window._db.collection("sitioWeb_ocupados").doc(String(normalized.id)).set({
+          pid: normalized.pid, ci: normalized.ci, co: normalized.co,
+        }).catch(e => console.error("[FB sitioWeb_ocupados]", normalized.id, e));
       const cur  = reserva.cur === "USD" ? "USD" : "ARS";
       const monto= cur === "USD" ? `USD ${+(reserva.amt)||0}` : `ARS ${(+(reserva.amt)||0).toLocaleString("es-AR")}`;
       const quien= CURRENT_USER.role === "owner" ? ` · cargada por ${CURRENT_USER.email}` : "";
@@ -376,6 +380,17 @@ function useReservas(showToast) {
         if(prevData) setRes(s => s.map(r => r.id === reserva.id ? prevData : r));
         showToast?.("Error al guardar, reintentá");
       });
+      if(window._fbReady && window._db) {
+        const isCancelled = (reserva.estado || "").toLowerCase().startsWith("cancel");
+        if(isCancelled) {
+          window._db.collection("sitioWeb_ocupados").doc(String(reserva.id)).delete()
+            .catch(e => console.error("[FB sitioWeb_ocupados]", reserva.id, e));
+        } else {
+          window._db.collection("sitioWeb_ocupados").doc(String(reserva.id)).set({
+            pid: reserva.pid, ci: reserva.ci, co: reserva.co,
+          }).catch(e => console.error("[FB sitioWeb_ocupados]", reserva.id, e));
+        }
+      }
     } catch(e) {
       console.error("[useReservas] Error al actualizar reserva:", e);
       throw e;
@@ -392,6 +407,9 @@ function useReservas(showToast) {
         if(prevData) setRes(s => [...s, prevData]);
         showToast?.("Error al guardar, reintentá");
       });
+      if(window._fbReady && window._db)
+        window._db.collection("sitioWeb_ocupados").doc(String(id)).delete()
+          .catch(e => console.error("[FB sitioWeb_ocupados]", id, e));
     } catch(e) {
       console.error("[useReservas] Error al eliminar reserva:", e);
       throw e;
