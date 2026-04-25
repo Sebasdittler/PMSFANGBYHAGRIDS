@@ -255,8 +255,8 @@ const getPaymentStatus = r => {
   const total   = r.amt || 0;
   const pending = Math.max(0, total - paid);
   let status;
-  if      (paid <= 0)    status = "pendiente";
-  else if (paid >= total) status = "pagado";
+  if      (paid >= total) status = "pagado";   // incluye el caso total=0 (nada que cobrar)
+  else if (paid <= 0)    status = "pendiente";
   else if (pmts.length === 1 && (pmts[0]?.method||"").toLowerCase().includes("seña")) status = "señado";
   else                   status = "parcial";
   return { status, paid, pending, total };
