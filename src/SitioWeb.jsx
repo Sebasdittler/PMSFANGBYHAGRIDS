@@ -549,8 +549,10 @@ export default function SitioWeb() {
   const [uploadHero,    setUploadHero]    = useState("");
   const [uploadingHero, setUploadingHero] = useState(false);
   const fileHeroRef = useRef(null);
-  const [videoHero,   setVideoHero]   = useState("");
-  const [savingVideo, setSavingVideo] = useState(false);
+  const [videoHero,     setVideoHero]     = useState("");
+  const [savingVideo,   setSavingVideo]   = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const videoFileRef = useRef(null);
 
   // Partners
   const [partners,        setPartners]        = useState([]);
@@ -634,6 +636,20 @@ export default function SitioWeb() {
     if (!window._db) return; setSavingVideo(true);
     try { await window._db.collection("sitioWeb_config").doc("general").set({ videoHero: videoHero.trim() }, { merge:true }); }
     catch(e) { alert("Error: "+e.message); } finally { setSavingVideo(false); }
+  }
+  async function subirVideoHero(file) {
+    if (!file) return;
+    setUploadingVideo(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("upload_preset", CLD_PRESET);
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLD_CLOUD}/video/upload`, { method:"POST", body:fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error?.message || "Error al subir");
+      setVideoHero(data.secure_url);
+    } catch(e) { alert("Error al subir video: "+e.message); }
+    finally { setUploadingVideo(false); if(videoFileRef.current) videoFileRef.current.value=""; }
   }
 
   // ── Partners ─────────────────────────────────────────────
@@ -820,10 +836,23 @@ export default function SitioWeb() {
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"1rem", flexWrap:"wrap", gap:8 }}>
               <div>
                 <div style={{ fontWeight:700, fontSize:"0.9rem", color:C.text }}>🎬 Video del hero</div>
-                <div style={{ fontSize:"0.75rem", color:C.muted, marginTop:2 }}>MP4 desde Cloudinary · 10-15 seg, menos de 8MB recomendado.</div>
+                <div style={{ fontSize:"0.75rem", color:C.muted, marginTop:2 }}>MP4 · 10-15 seg, menos de 50MB. Tiene prioridad sobre las fotos.</div>
               </div>
-              <button onClick={guardarVideoHero} disabled={savingVideo} style={S.btnPrimary}>{savingVideo?"Guardando…":"Guardar video"}</button>
+              <button onClick={guardarVideoHero} disabled={savingVideo||uploadingVideo} style={S.btnPrimary}>{savingVideo?"Guardando…":"Guardar video"}</button>
             </div>
+
+            {/* Upload directo */}
+            <div style={{ background:"rgba(255,255,255,0.03)", border:`1px dashed ${C.border}`, borderRadius:8, padding:"0.9rem", textAlign:"center", marginBottom:"0.9rem" }}>
+              <input ref={videoFileRef} type="file" accept="video/mp4,video/webm,video/*" onChange={e=>e.target.files?.[0]&&subirVideoHero(e.target.files[0])} style={{ display:"none" }} id="video-hero-upload"/>
+              <label htmlFor="video-hero-upload" style={{ cursor: uploadingVideo?"default":"pointer", display:"inline-flex", flexDirection:"column", alignItems:"center", gap:5, opacity: uploadingVideo?0.6:1 }}>
+                <span style={{ fontSize:"1.5rem" }}>{uploadingVideo?"⏳":"🎬"}</span>
+                <span style={{ fontSize:"0.82rem", color:C.green, fontWeight:600 }}>{uploadingVideo?"Subiendo video… puede tardar unos segundos":"Subir video desde tu computadora"}</span>
+                <span style={{ fontSize:"0.7rem", color:C.muted }}>MP4 recomendado · máx. 50MB</span>
+              </label>
+            </div>
+
+            {/* URL manual (fallback) */}
+            <div style={{ fontSize:"0.68rem", color:C.muted, marginBottom:5, fontWeight:600, letterSpacing:"0.06em", textTransform:"uppercase" }}>O pegá una URL de Cloudinary</div>
             <input type="url" value={videoHero} onChange={e=>setVideoHero(e.target.value)} placeholder="https://res.cloudinary.com/dpedzxviy/video/upload/q_auto/nombre.mp4" style={S.inp}/>
             {videoHero.trim()
               ? <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
