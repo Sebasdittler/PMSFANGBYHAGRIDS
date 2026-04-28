@@ -558,7 +558,7 @@ export default function SitioWeb() {
   const [partners,        setPartners]        = useState([]);
   const [savingPartners,  setSavingPartners]  = useState(false);
   const [uploadingLogo,   setUploadingLogo]   = useState(false);
-  const [partnerForm,     setPartnerForm]     = useState({ nombre:"", descripcion:"", logo:"" });
+  const [partnerForm,     setPartnerForm]     = useState({ nombre:"", descripcion:"", logo:"", instagram:"" });
   const [editingPartner,  setEditingPartner]  = useState(null);
   const [showPartnerForm, setShowPartnerForm] = useState(false);
   const logoRef = useRef(null);
@@ -663,21 +663,21 @@ export default function SitioWeb() {
     finally { setUploadingLogo(false); if(logoRef.current) logoRef.current.value=""; }
   }
   function abrirNuevoPartner() {
-    setPartnerForm({ nombre:"", descripcion:"", logo:"" });
+    setPartnerForm({ nombre:"", descripcion:"", logo:"", instagram:"" });
     setEditingPartner(null); setShowPartnerForm(true);
   }
   function abrirEditarPartner(idx) {
-    setPartnerForm({ ...partners[idx] });
+    setPartnerForm({ instagram:"", ...partners[idx] });
     setEditingPartner(idx); setShowPartnerForm(true);
   }
   function cerrarPartnerForm() {
     setShowPartnerForm(false);
-    setPartnerForm({ nombre:"", descripcion:"", logo:"" });
+    setPartnerForm({ nombre:"", descripcion:"", logo:"", instagram:"" });
     setEditingPartner(null);
   }
   async function guardarPartner() {
     if (!partnerForm.nombre.trim()) { alert("El nombre es obligatorio"); return; }
-    const nuevo = { nombre:partnerForm.nombre.trim(), descripcion:partnerForm.descripcion.trim(), logo:partnerForm.logo };
+    const nuevo = { nombre:partnerForm.nombre.trim(), descripcion:partnerForm.descripcion.trim(), logo:partnerForm.logo, instagram:partnerForm.instagram.trim() };
     const lista = editingPartner === null
       ? [...partners, nuevo]
       : partners.map((p,i) => i===editingPartner ? nuevo : p);
@@ -921,6 +921,7 @@ export default function SitioWeb() {
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontWeight:700, fontSize:"0.92rem", color:C.text }}>{p.nombre}</div>
                 {p.descripcion&&<div style={{ fontSize:"0.78rem", color:C.muted, marginTop:2, lineHeight:1.5 }}>{p.descripcion}</div>}
+                {p.instagram&&<div style={{ fontSize:"0.72rem", color:C.green, marginTop:2 }}>📷 {p.instagram}</div>}
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
                 <button onClick={()=>moverPartner(idx,-1)} disabled={idx===0} style={{ background:"none", border:`1px solid ${C.border}`, color:C.muted, borderRadius:6, padding:"4px 9px", cursor:idx===0?"default":"pointer", opacity:idx===0?0.3:1, fontSize:"0.85rem" }}>↑</button>
@@ -944,6 +945,10 @@ export default function SitioWeb() {
               <div style={{ marginBottom:"1rem" }}>
                 <label style={S.label}>Descripción <span style={{color:C.muted,fontWeight:400,textTransform:"none"}}>(opcional — solo referencia interna)</span></label>
                 <input value={partnerForm.descripcion} onChange={e=>setPartnerForm(f=>({...f,descripcion:e.target.value}))} placeholder="Ej: Excursiones al Parque Nacional, 15% de descuento" style={S.inp}/>
+              </div>
+              <div style={{ marginBottom:"1rem" }}>
+                <label style={S.label}>Instagram <span style={{color:C.muted,fontWeight:400,textTransform:"none"}}>(link al hacer clic en la web)</span></label>
+                <input value={partnerForm.instagram} onChange={e=>setPartnerForm(f=>({...f,instagram:e.target.value}))} placeholder="Ej: @nombre o https://instagram.com/nombre" style={S.inp}/>
               </div>
               <label style={S.label}>Logo</label>
               <div style={{ display:"flex", alignItems:"center", gap:"1rem", flexWrap:"wrap", marginBottom:"1.2rem" }}>
