@@ -7,24 +7,24 @@
        7 temas disponibles — todos en tonos pasteles
     ════════════════════════════════════════════════ */
 
-    /* TEMA 1: soft-olive (verde sage pastel) */
+    /* TEMA 1: soft-olive — Paleta de marca Villa La Angostura */
     :root, body.soft-olive {
-      --bg-main:          #f4f6f2;
-      --bg-surface:       #fafbf9;
-      --bg-elevated:      #eaefe6;
-      --primary:          #7a9b6c;
-      --primary-soft:     #dde8d7;
-      --accent:           #c5b8a8;
-      --text-main:        #2a2f28;
-      --text-muted:       #697566;
-      --border-color:     #d8e0d2;
+      --bg-main:          #F5F2EC;
+      --bg-surface:       #FDFCFA;
+      --bg-elevated:      #EDE8DF;
+      --primary:          #7A8A77;
+      --primary-soft:     #E0E8DE;
+      --accent:           #D6C2A1;
+      --text-main:        #2C2C2C;
+      --text-muted:       #6D706A;
+      --border-color:     #DED7CC;
       --danger:           #c05050;
-      --sidebar-bg:       linear-gradient(175deg,#1a2e18 0%,#253e22 40%,#1a2e18 100%);
-      --sidebar-text:     rgba(210,230,200,0.55);
-      --sidebar-act-text: #d4eecc;
-      --sidebar-act-bg:   rgba(130,185,115,0.20);
+      --sidebar-bg:       linear-gradient(175deg,#1A2818 0%,#253D20 40%,#1A2818 100%);
+      --sidebar-text:     rgba(214,194,161,0.55);
+      --sidebar-act-text: #E8DDD0;
+      --sidebar-act-bg:   rgba(122,138,119,0.22);
       --sidebar-border:   rgba(255,255,255,0.07);
-      --bnav-bg:          linear-gradient(0deg,#1a2e18 0%,#253e22 100%);
+      --bnav-bg:          linear-gradient(0deg,#1A2818 0%,#253D20 100%);
     }
 
     /* TEMA 2: pastel-purple (lavanda suave) */

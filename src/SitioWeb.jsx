@@ -98,7 +98,7 @@ function TimelineAnual({ tarifas }) {
       <div style={{ display:"flex", height:22, borderRadius:6, overflow:"hidden", border:`1px solid ${C.border}` }}>
         {segments.map((seg, i) => (
           <div key={i} title={seg.overlap ? "⚠ Solapamiento" : (seg.temp ? seg.temp.nombre : "Sin cobertura")}
-            style={{ flex: seg.count, background: seg.overlap ? "#e05252" : (seg.temp ? seg.temp.color : "rgba(255,255,255,0.07)"), opacity: seg.overlap ? 1 : (seg.temp ? 0.82 : 1) }}
+            style={{ flex: seg.count, background: seg.overlap ? "#C05050" : (seg.temp ? seg.temp.color : "rgba(44,44,44,0.06)"), opacity: seg.overlap ? 1 : (seg.temp ? 0.82 : 1) }}
           />
         ))}
       </div>
@@ -111,13 +111,13 @@ function TimelineAnual({ tarifas }) {
         ))}
         {sinCubrir > 0 && (
           <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-            <div style={{ width:10, height:10, borderRadius:2, background:"rgba(255,255,255,0.1)", border:`1px solid ${C.border}` }}/>
+            <div style={{ width:10, height:10, borderRadius:2, background:"rgba(44,44,44,0.06)", border:`1px solid ${C.border}` }}/>
             <span style={{ fontSize:"0.65rem", color:C.muted }}>Sin cobertura</span>
           </div>
         )}
       </div>
       {solapados > 0 && (
-        <div style={{ marginTop:8, padding:"0.45rem 0.8rem", background:"rgba(224,82,82,0.13)", border:"1px solid rgba(224,82,82,0.4)", borderRadius:6, fontSize:"0.74rem", color:"#e05252" }}>
+        <div style={{ marginTop:8, padding:"0.45rem 0.8rem", background:C.redDim, border:`1px solid rgba(192,80,80,0.35)`, borderRadius:6, fontSize:"0.74rem", color:C.red }}>
           ⚠ {solapados} día{solapados>1?"s":""} se solapan entre temporadas — revisá los rangos.
         </div>
       )}
@@ -137,35 +137,35 @@ const WEB_VACIO = {
   amenities: [], fotos: [], fotoUrl: "",
   mostrarEnWeb: false, orden: 99,
   tarifas: [
-    TEMP_VACIA("Temporada alta",  "#e09f3e"),
-    TEMP_VACIA("Temporada media", "#52b788"),
-    TEMP_VACIA("Temporada baja",  "#5b8fd4"),
+    TEMP_VACIA("Temporada alta",  "#D6C2A1"),
+    TEMP_VACIA("Temporada media", "#7A8A77"),
+    TEMP_VACIA("Temporada baja",  "#9DB5C0"),
   ],
 };
 
-// ── Tokens de diseño ─────────────────────────────────────────
+// ── Tokens de diseño — Paleta de marca Villa La Angostura ────
 const C = {
-  bg:        "#111827",
-  surface:   "#1a2332",
-  surface2:  "#1e2d3d",
-  border:    "rgba(255,255,255,0.1)",
-  border2:   "rgba(255,255,255,0.06)",
-  text:      "#f0f4f8",
-  muted:     "#a0aab4",
-  green:     "#52b788",
-  greenDim:  "rgba(82,183,136,0.18)",
-  greenBrd:  "rgba(82,183,136,0.4)",
-  amber:     "#e09f3e",
-  amberDim:  "rgba(224,159,62,0.15)",
-  red:       "#e05252",
-  redDim:    "rgba(224,82,82,0.15)",
+  bg:        "#F5F2EC",
+  surface:   "#FDFCFA",
+  surface2:  "#F0EBE3",
+  border:    "rgba(44,44,44,0.1)",
+  border2:   "rgba(44,44,44,0.06)",
+  text:      "#2C2C2C",
+  muted:     "#6D706A",
+  green:     "#7A8A77",
+  greenDim:  "rgba(122,138,119,0.12)",
+  greenBrd:  "rgba(122,138,119,0.3)",
+  amber:     "#D6C2A1",
+  amberDim:  "rgba(214,194,161,0.18)",
+  red:       "#C05050",
+  redDim:    "rgba(192,80,80,0.12)",
 };
 
 const S = {
   label: { display:"block", fontSize:"0.7rem", fontWeight:700, color:C.muted, marginBottom:5, letterSpacing:"0.08em", textTransform:"uppercase" },
-  inp:   { width:"100%", padding:"9px 12px", border:`1px solid ${C.border}`, borderRadius:8, fontSize:"0.92rem", fontFamily:"inherit", outline:"none", background:C.surface2, color:C.text, boxSizing:"border-box" },
-  btnPrimary: { padding:"9px 22px", background:"#2d6a4f", color:"#fff", border:`1px solid ${C.green}`, borderRadius:8, cursor:"pointer", fontSize:"0.9rem", fontWeight:700 },
-  btnGhost:   { padding:"9px 18px", background:"rgba(255,255,255,0.06)", color:C.muted, border:`1px solid ${C.border}`, borderRadius:8, cursor:"pointer", fontSize:"0.88rem" },
+  inp:   { width:"100%", padding:"9px 12px", border:`1px solid ${C.border}`, borderRadius:8, fontSize:"0.92rem", fontFamily:"inherit", outline:"none", background:"#fff", color:C.text, boxSizing:"border-box" },
+  btnPrimary: { padding:"9px 22px", background:"#7A8A77", color:"#fff", border:"none", borderRadius:8, cursor:"pointer", fontSize:"0.9rem", fontWeight:600 },
+  btnGhost:   { padding:"9px 18px", background:"transparent", color:"#7A8A77", border:`1px solid #7A8A77`, borderRadius:8, cursor:"pointer", fontSize:"0.88rem" },
   btnSm: (bg, brd) => ({ padding:"6px 14px", background:bg, color:"#fff", border:`1px solid ${brd||"transparent"}`, borderRadius:6, cursor:"pointer", fontSize:"0.8rem", fontWeight:600 }),
 };
 
@@ -176,7 +176,7 @@ function CompletitudBar({ web }) {
   const color = pct===100?C.green:pct>=60?C.amber:C.red;
   return (
     <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:6 }}>
-      <div style={{ flex:1, height:4, background:"rgba(255,255,255,0.08)", borderRadius:2, overflow:"hidden" }}>
+      <div style={{ flex:1, height:4, background:"rgba(44,44,44,0.08)", borderRadius:2, overflow:"hidden" }}>
         <div style={{ width:`${pct}%`, height:"100%", background:color, borderRadius:2, transition:"width 0.4s" }}/>
       </div>
       <span style={{ fontSize:"0.68rem", color, fontWeight:700, minWidth:28 }}>{pct}%</span>
@@ -340,7 +340,7 @@ function TabActividades() {
       {lista.map((act,idx)=>(
         <div key={idx} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, marginBottom:"0.75rem", padding:"1rem 1.2rem", display:"flex", alignItems:"center", gap:"1rem" }}>
           {/* Preview foto */}
-          <div style={{ width:70, height:52, flexShrink:0, borderRadius:8, overflow:"hidden", background:"rgba(255,255,255,0.06)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"1.4rem" }}>
+          <div style={{ width:70, height:52, flexShrink:0, borderRadius:8, overflow:"hidden", background:"rgba(122,138,119,0.08)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"1.4rem" }}>
             {act.fotos?.[0]
               ? <img src={act.fotos[0]} alt={act.titulo} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
               : <span>{act.icono||"📍"}</span>
@@ -354,7 +354,7 @@ function TabActividades() {
           <div style={{ display:"flex", gap:6, flexShrink:0 }}>
             <button onClick={()=>mover(idx,-1)} disabled={idx===0} style={{ background:"none", border:`1px solid ${C.border}`, color:C.muted, borderRadius:6, padding:"4px 9px", cursor:idx===0?"default":"pointer", opacity:idx===0?0.3:1, fontSize:"0.85rem" }}>↑</button>
             <button onClick={()=>mover(idx,1)} disabled={idx===lista.length-1} style={{ background:"none", border:`1px solid ${C.border}`, color:C.muted, borderRadius:6, padding:"4px 9px", cursor:idx===lista.length-1?"default":"pointer", opacity:idx===lista.length-1?0.3:1, fontSize:"0.85rem" }}>↓</button>
-            <button onClick={()=>abrirEditar(idx)} style={S.btnSm("#2d6a4f",C.green)}>Editar</button>
+            <button onClick={()=>abrirEditar(idx)} style={S.btnSm("#7A8A77",C.green)}>Editar</button>
             <button onClick={()=>eliminar(idx)} style={{ ...S.btnSm("transparent",C.red), color:C.red }}>✕</button>
           </div>
         </div>
@@ -389,13 +389,13 @@ function TabActividades() {
               {form.fotos.map((url,fi)=>(
                 <div key={fi} style={{ position:"relative", width:90, height:65 }}>
                   <img src={url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:6, display:"block", border: fi===0?`2px solid ${C.green}`:`1px solid ${C.border}` }}/>
-                  {fi===0&&<div style={{ position:"absolute", top:2, left:2, background:"rgba(82,183,136,0.9)", color:"#fff", fontSize:"0.5rem", padding:"1px 4px", borderRadius:3, fontWeight:700 }}>1ERA</div>}
+                  {fi===0&&<div style={{ position:"absolute", top:2, left:2, background:"rgba(122,138,119,0.9)", color:"#fff", fontSize:"0.5rem", padding:"1px 4px", borderRadius:3, fontWeight:700 }}>1ERA</div>}
                   <button onClick={()=>setForm(f=>({...f,fotos:f.fotos.filter((_,j)=>j!==fi)}))} style={{ position:"absolute", top:-5, right:-5, width:16, height:16, borderRadius:"50%", background:C.red, border:"none", color:"#fff", fontSize:"0.65rem", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
                 </div>
               ))}
             </div>
           )}
-          <div style={{ background:"rgba(255,255,255,0.03)", border:`1px dashed ${C.border}`, borderRadius:8, padding:"0.8rem", textAlign:"center", marginBottom:"1.2rem" }}>
+          <div style={{ background:"rgba(44,44,44,0.02)", border:`1px dashed ${C.border}`, borderRadius:8, padding:"0.8rem", textAlign:"center", marginBottom:"1.2rem" }}>
             <input ref={fileRef} type="file" accept="image/*" multiple onChange={e=>subirFotos(e.target.files)} style={{ display:"none" }} id="act-foto-upload"/>
             <label htmlFor="act-foto-upload" style={{ cursor:"pointer", display:"inline-flex", flexDirection:"column", alignItems:"center", gap:4 }}>
               <span style={{ fontSize:"1.2rem" }}>📷</span>
@@ -490,7 +490,7 @@ function TabNosotros() {
             </div>
           )}
           <div style={{ flex:1 }}>
-            <div style={{ background:"rgba(255,255,255,0.03)", border:`1px dashed ${C.border}`, borderRadius:8, padding:"0.9rem", textAlign:"center" }}>
+            <div style={{ background:"rgba(44,44,44,0.02)", border:`1px dashed ${C.border}`, borderRadius:8, padding:"0.9rem", textAlign:"center" }}>
               <input ref={fotoRef} type="file" accept="image/*" onChange={e=>e.target.files?.[0]&&subirFotoNosotros(e.target.files[0])} style={{ display:"none" }} id="nosotros-foto-upload"/>
               <label htmlFor="nosotros-foto-upload" style={{ cursor:"pointer", display:"inline-flex", flexDirection:"column", alignItems:"center", gap:5 }}>
                 <span style={{ fontSize:"1.3rem" }}>📷</span>
@@ -709,7 +709,7 @@ export default function SitioWeb() {
     const camasCalc = dorms.reduce((s,d)=>s+(d.matrimoniales||0)+(d.simples||0),0);
     const capacCalc = dorms.reduce((s,d)=>s+(d.matrimoniales||0)*2+(d.simples||0),0);
     const nombreWeb = existing.nombre && existing.nombre!==fangProp.name ? existing.nombre : fangProp.name;
-    const tarifas = existing.tarifas?.length===3 ? existing.tarifas : [TEMP_VACIA("Temporada alta","#e09f3e"),TEMP_VACIA("Temporada media","#52b788"),TEMP_VACIA("Temporada baja","#5b8fd4")];
+    const tarifas = existing.tarifas?.length===3 ? existing.tarifas : [TEMP_VACIA("Temporada alta","#D6C2A1"),TEMP_VACIA("Temporada media","#7A8A77"),TEMP_VACIA("Temporada baja","#9DB5C0")];
     setForm({ ...WEB_VACIO, camas:camasCalc||"", capacidad:capacCalc||"", ...existing, fotos:existing.fotos||(existing.fotoUrl?[existing.fotoUrl]:[]), nombreWeb, tarifas });
     setUploadMsg(""); setModal(fangProp);
   }
@@ -791,7 +791,7 @@ export default function SitioWeb() {
               <div key={p.id} style={{ background:C.surface, border:`1px solid ${visible?C.greenBrd:C.border}`, borderRadius:12, marginBottom:"0.8rem", overflow:"hidden", transition:"border-color 0.2s" }}>
                 <div style={{ display:"flex", alignItems:"stretch" }}>
                   <div style={{ width:100, flexShrink:0, position:"relative" }}>
-                    {fotos[0] ? <img src={fotos[0]} alt={p.name} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/> : <div style={{ width:"100%", height:"100%", minHeight:80, background:"rgba(255,255,255,0.04)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"1.8rem" }}>🏠</div>}
+                    {fotos[0] ? <img src={fotos[0]} alt={p.name} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/> : <div style={{ width:"100%", height:"100%", minHeight:80, background:"rgba(122,138,119,0.06)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"1.8rem" }}>🏠</div>}
                     {fotos.length>1 && <div style={{ position:"absolute", bottom:5, right:5, background:"rgba(0,0,0,0.6)", color:"#fff", fontSize:"0.65rem", padding:"2px 6px", borderRadius:8, fontWeight:700 }}>{fotos.length} fotos</div>}
                   </div>
                   <div style={{ flex:1, padding:"0.9rem 1.1rem", minWidth:0 }}>
@@ -812,8 +812,8 @@ export default function SitioWeb() {
                         {web?<CompletitudBar web={web}/>:<div style={{ fontSize:"0.73rem", color:C.amber, marginTop:6 }}>⚠ Sin detalles web — hacé clic en Editar</div>}
                       </div>
                       <div style={{ display:"flex", gap:7, alignItems:"center", flexShrink:0 }}>
-                        <button onClick={()=>toggleWeb(p)} style={{ padding:"5px 14px", borderRadius:20, border:"none", cursor:"pointer", fontSize:"0.78rem", fontWeight:700, background:visible?C.greenDim:"rgba(255,255,255,0.07)", color:visible?C.green:C.muted }}>{visible?"✓ Visible":"Oculta"}</button>
-                        <button onClick={()=>abrirEditar(p)} style={S.btnSm("#2d6a4f",C.green)}>Editar</button>
+                        <button onClick={()=>toggleWeb(p)} style={{ padding:"5px 14px", borderRadius:20, border:"none", cursor:"pointer", fontSize:"0.78rem", fontWeight:700, background:visible?C.greenDim:"rgba(44,44,44,0.05)", color:visible?C.green:C.muted }}>{visible?"✓ Visible":"Oculta"}</button>
+                        <button onClick={()=>abrirEditar(p)} style={S.btnSm("#7A8A77",C.green)}>Editar</button>
                       </div>
                     </div>
                   </div>
@@ -842,7 +842,7 @@ export default function SitioWeb() {
             </div>
 
             {/* Upload directo */}
-            <div style={{ background:"rgba(255,255,255,0.03)", border:`1px dashed ${C.border}`, borderRadius:8, padding:"0.9rem", textAlign:"center", marginBottom:"0.9rem" }}>
+            <div style={{ background:"rgba(44,44,44,0.02)", border:`1px dashed ${C.border}`, borderRadius:8, padding:"0.9rem", textAlign:"center", marginBottom:"0.9rem" }}>
               <input ref={videoFileRef} type="file" accept="video/mp4,video/webm,video/*" onChange={e=>e.target.files?.[0]&&subirVideoHero(e.target.files[0])} style={{ display:"none" }} id="video-hero-upload"/>
               <label htmlFor="video-hero-upload" style={{ cursor: uploadingVideo?"default":"pointer", display:"inline-flex", flexDirection:"column", alignItems:"center", gap:5, opacity: uploadingVideo?0.6:1 }}>
                 <span style={{ fontSize:"1.5rem" }}>{uploadingVideo?"⏳":"🎬"}</span>
@@ -877,13 +877,13 @@ export default function SitioWeb() {
                 {fotosHero.map((url,i)=>(
                   <div key={i} style={{ position:"relative", width:110, height:75 }}>
                     <img src={url} alt={`Hero ${i+1}`} style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:8, display:"block", border:`1px solid ${C.border}` }}/>
-                    {i===0&&<div style={{ position:"absolute", top:3, left:3, background:"rgba(82,183,136,0.9)", color:"#fff", fontSize:"0.55rem", padding:"1px 5px", borderRadius:4, fontWeight:700 }}>1ERA</div>}
-                    <button onClick={()=>setFotosHero(f=>f.filter((_,j)=>j!==i))} style={{ position:"absolute", top:-5, right:-5, width:18, height:18, borderRadius:"50%", background:"#e05252", border:"none", color:"#fff", fontSize:"0.7rem", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
+                    {i===0&&<div style={{ position:"absolute", top:3, left:3, background:"rgba(122,138,119,0.9)", color:"#fff", fontSize:"0.55rem", padding:"1px 5px", borderRadius:4, fontWeight:700 }}>1ERA</div>}
+                    <button onClick={()=>setFotosHero(f=>f.filter((_,j)=>j!==i))} style={{ position:"absolute", top:-5, right:-5, width:18, height:18, borderRadius:"50%", background:C.red, border:"none", color:"#fff", fontSize:"0.7rem", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✕</button>
                   </div>
                 ))}
               </div>
             )}
-            <div style={{ background:"rgba(255,255,255,0.03)", border:`1px dashed ${C.border}`, borderRadius:8, padding:"0.9rem", textAlign:"center" }}>
+            <div style={{ background:"rgba(44,44,44,0.02)", border:`1px dashed ${C.border}`, borderRadius:8, padding:"0.9rem", textAlign:"center" }}>
               <input ref={fileHeroRef} type="file" accept="image/*" multiple onChange={e=>agregarFotosHero(e.target.files)} style={{ display:"none" }} id="hero-upload"/>
               <label htmlFor="hero-upload" style={{ cursor:"pointer", display:"inline-flex", flexDirection:"column", alignItems:"center", gap:5 }}>
                 <span style={{ fontSize:"1.3rem" }}>🖼️</span>
@@ -915,7 +915,7 @@ export default function SitioWeb() {
 
           {partners.map((p,idx)=>(
             <div key={idx} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, marginBottom:"0.75rem", padding:"1rem 1.2rem", display:"flex", alignItems:"center", gap:"1rem" }}>
-              <div style={{ width:56, height:56, flexShrink:0, background:"rgba(255,255,255,0.9)", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", border:`1px solid ${C.border}` }}>
+              <div style={{ width:56, height:56, flexShrink:0, background:"#fff", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", border:`1px solid ${C.border}` }}>
                 {p.logo ? <img src={p.logo} alt={p.nombre} style={{ width:"100%", height:"100%", objectFit:"contain", padding:4 }}/> : <span style={{ fontSize:"1.4rem" }}>🤝</span>}
               </div>
               <div style={{ flex:1, minWidth:0 }}>
@@ -925,7 +925,7 @@ export default function SitioWeb() {
               <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
                 <button onClick={()=>moverPartner(idx,-1)} disabled={idx===0} style={{ background:"none", border:`1px solid ${C.border}`, color:C.muted, borderRadius:6, padding:"4px 9px", cursor:idx===0?"default":"pointer", opacity:idx===0?0.3:1, fontSize:"0.85rem" }}>↑</button>
                 <button onClick={()=>moverPartner(idx,1)} disabled={idx===partners.length-1} style={{ background:"none", border:`1px solid ${C.border}`, color:C.muted, borderRadius:6, padding:"4px 9px", cursor:idx===partners.length-1?"default":"pointer", opacity:idx===partners.length-1?0.3:1, fontSize:"0.85rem" }}>↓</button>
-                <button onClick={()=>abrirEditarPartner(idx)} style={S.btnSm("#2d6a4f",C.green)}>Editar</button>
+                <button onClick={()=>abrirEditarPartner(idx)} style={S.btnSm("#7A8A77",C.green)}>Editar</button>
                 <button onClick={()=>eliminarPartner(idx)} style={{ ...S.btnSm("transparent",C.red), color:C.red }}>✕</button>
               </div>
             </div>
@@ -948,12 +948,12 @@ export default function SitioWeb() {
               <label style={S.label}>Logo</label>
               <div style={{ display:"flex", alignItems:"center", gap:"1rem", flexWrap:"wrap", marginBottom:"1.2rem" }}>
                 {partnerForm.logo&&(
-                  <div style={{ width:72, height:72, background:"rgba(255,255,255,0.92)", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", padding:4, border:`1px solid ${C.border}`, flexShrink:0 }}>
+                  <div style={{ width:72, height:72, background:"#fff", borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", padding:4, border:`1px solid ${C.border}`, flexShrink:0 }}>
                     <img src={partnerForm.logo} alt="Logo" style={{ width:"100%", height:"100%", objectFit:"contain" }}/>
                   </div>
                 )}
                 <div style={{ flex:1 }}>
-                  <div style={{ background:"rgba(255,255,255,0.03)", border:`1px dashed ${C.border}`, borderRadius:8, padding:"0.7rem", textAlign:"center" }}>
+                  <div style={{ background:"rgba(44,44,44,0.02)", border:`1px dashed ${C.border}`, borderRadius:8, padding:"0.7rem", textAlign:"center" }}>
                     <input ref={logoRef} type="file" accept="image/*" onChange={e=>e.target.files?.[0]&&subirLogo(e.target.files[0])} style={{ display:"none" }} id="logo-upload"/>
                     <label htmlFor="logo-upload" style={{ cursor:"pointer", display:"inline-flex", flexDirection:"column", alignItems:"center", gap:4 }}>
                       <span style={{ fontSize:"1.1rem" }}>🖼️</span>
@@ -1046,7 +1046,7 @@ export default function SitioWeb() {
                         const selSt={...S.inp,flex:1,minWidth:0,padding:"8px 6px",fontSize:"0.83rem"};
                         const updRango=(field,val)=>setForm(f=>({...f,tarifas:f.tarifas.map((t,i)=>i!==ti?t:{...t,rangos:t.rangos.map((r,j)=>j!==ri?r:{...r,[field]:val})})}));
                         return (
-                          <div key={ri} style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${C.border2}`, borderRadius:8, padding:"0.7rem 0.8rem", marginBottom:8 }}>
+                          <div key={ri} style={{ background:"rgba(44,44,44,0.02)", border:`1px solid ${C.border2}`, borderRadius:8, padding:"0.7rem 0.8rem", marginBottom:8 }}>
                             <div style={{ display:"grid", gridTemplateColumns:"1fr 28px 1fr auto", gap:6, alignItems:"end" }}>
                               <div>
                                 <div style={{ fontSize:"0.62rem", color:C.muted, fontWeight:700, marginBottom:5, letterSpacing:"0.06em", textTransform:"uppercase" }}>Desde</div>
@@ -1073,7 +1073,7 @@ export default function SitioWeb() {
                           </div>
                         );
                       })}
-                      <button onClick={()=>setForm(f=>({...f,tarifas:f.tarifas.map((t,i)=>i===ti?{...t,rangos:[...t.rangos,{desde:"",hasta:""}]}:t)}))} style={{...S.btnSm("rgba(255,255,255,0.06)",C.border),marginTop:4}}>+ Agregar rango de fechas</button>
+                      <button onClick={()=>setForm(f=>({...f,tarifas:f.tarifas.map((t,i)=>i===ti?{...t,rangos:[...t.rangos,{desde:"",hasta:""}]}:t)}))} style={{...S.btnSm("rgba(44,44,44,0.04)",C.border),color:C.muted,marginTop:4}}>+ Agregar rango de fechas</button>
                     </div>
                   </div>
                 ))}
@@ -1087,13 +1087,13 @@ export default function SitioWeb() {
                     {form.fotos.map((url,i)=>(
                       <div key={i} style={{ position:"relative", width:110, height:80 }}>
                         <img src={url} alt={`Foto ${i+1}`} style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:8, display:"block", border:i===0?`2px solid ${C.green}`:`1px solid ${C.border}` }}/>
-                        {i===0?<div style={{ position:"absolute", top:3, left:3, background:"rgba(82,183,136,0.9)", color:"#fff", fontSize:"0.55rem", padding:"1px 5px", borderRadius:4, fontWeight:700 }}>PORTADA</div>:<button onClick={()=>setPortada(i)} style={{ position:"absolute", top:3, left:3, background:"rgba(0,0,0,0.55)", border:"none", color:"#fff", fontSize:"0.55rem", padding:"2px 5px", borderRadius:4, cursor:"pointer", fontWeight:600 }}>⭐ portada</button>}
-                        <button onClick={()=>eliminarFoto(i)} style={{ position:"absolute", top:-5, right:-5, width:18, height:18, borderRadius:"50%", background:"#e05252", border:"none", color:"#fff", fontSize:"0.7rem", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1 }}>✕</button>
+                        {i===0?<div style={{ position:"absolute", top:3, left:3, background:"rgba(122,138,119,0.9)", color:"#fff", fontSize:"0.55rem", padding:"1px 5px", borderRadius:4, fontWeight:700 }}>PORTADA</div>:<button onClick={()=>setPortada(i)} style={{ position:"absolute", top:3, left:3, background:"rgba(0,0,0,0.55)", border:"none", color:"#fff", fontSize:"0.55rem", padding:"2px 5px", borderRadius:4, cursor:"pointer", fontWeight:600 }}>⭐ portada</button>}
+                        <button onClick={()=>eliminarFoto(i)} style={{ position:"absolute", top:-5, right:-5, width:18, height:18, borderRadius:"50%", background:C.red, border:"none", color:"#fff", fontSize:"0.7rem", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", lineHeight:1 }}>✕</button>
                       </div>
                     ))}
                   </div>
                 )}
-                <div style={{ background:"rgba(255,255,255,0.03)", border:`1px dashed ${C.border}`, borderRadius:8, padding:"1rem", textAlign:"center" }}>
+                <div style={{ background:"rgba(44,44,44,0.02)", border:`1px dashed ${C.border}`, borderRadius:8, padding:"1rem", textAlign:"center" }}>
                   <input ref={fileRef} type="file" accept="image/*" multiple onChange={e=>agregarFotos(e.target.files)} style={{ display:"none" }} id="foto-upload"/>
                   <label htmlFor="foto-upload" style={{ cursor:"pointer", display:"inline-flex", flexDirection:"column", alignItems:"center", gap:6 }}>
                     <div style={{ fontSize:"1.6rem" }}>📷</div>
@@ -1107,12 +1107,12 @@ export default function SitioWeb() {
               <Seccion titulo="Comodidades">
                 <div style={{ display:"flex", flexWrap:"wrap", gap:7, marginBottom:"0.9rem" }}>
                   {AMENITIES_SUGERIDOS.map(a=>(
-                    <button key={a} type="button" onClick={()=>toggleAmenity(a)} style={{ padding:"5px 12px", borderRadius:16, fontSize:"0.8rem", cursor:"pointer", background:form.amenities.includes(a)?C.greenDim:"rgba(255,255,255,0.05)", color:form.amenities.includes(a)?C.green:C.muted, border:`1.5px solid ${form.amenities.includes(a)?C.green:C.border}`, fontWeight:form.amenities.includes(a)?600:400, transition:"all 0.15s" }}>{a}</button>
+                    <button key={a} type="button" onClick={()=>toggleAmenity(a)} style={{ padding:"5px 12px", borderRadius:16, fontSize:"0.8rem", cursor:"pointer", background:form.amenities.includes(a)?C.greenDim:"rgba(44,44,44,0.04)", color:form.amenities.includes(a)?C.green:C.muted, border:`1.5px solid ${form.amenities.includes(a)?C.green:C.border}`, fontWeight:form.amenities.includes(a)?600:400, transition:"all 0.15s" }}>{a}</button>
                   ))}
                 </div>
                 <div style={{ display:"flex", gap:8 }}>
                   <input value={amenInput} onChange={e=>setAmenInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(e.preventDefault(),addCustomAmenity())} placeholder="Otra comodidad personalizada…" style={{...S.inp,flex:1}}/>
-                  <button type="button" onClick={addCustomAmenity} style={S.btnSm("#2d6a4f",C.green)}>+ Agregar</button>
+                  <button type="button" onClick={addCustomAmenity} style={S.btnSm("#7A8A77",C.green)}>+ Agregar</button>
                 </div>
                 {form.amenities.filter(a=>!AMENITIES_SUGERIDOS.includes(a)).length>0&&(
                   <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:8 }}>
@@ -1124,7 +1124,7 @@ export default function SitioWeb() {
               </Seccion>
 
               <Seccion titulo="Visibilidad en la web">
-                <label style={{ display:"flex", alignItems:"center", gap:14, cursor:"pointer", background:form.mostrarEnWeb?C.greenDim:"rgba(255,255,255,0.03)", border:`1px solid ${form.mostrarEnWeb?C.greenBrd:C.border}`, borderRadius:10, padding:"1rem 1.2rem", transition:"all 0.2s" }}>
+                <label style={{ display:"flex", alignItems:"center", gap:14, cursor:"pointer", background:form.mostrarEnWeb?C.greenDim:"rgba(44,44,44,0.02)", border:`1px solid ${form.mostrarEnWeb?C.greenBrd:C.border}`, borderRadius:10, padding:"1rem 1.2rem", transition:"all 0.2s" }}>
                   <input type="checkbox" checked={form.mostrarEnWeb} onChange={e=>setForm(f=>({...f,mostrarEnWeb:e.target.checked}))} style={{ width:18, height:18, cursor:"pointer", accentColor:C.green }}/>
                   <div>
                     <span style={{ fontSize:"0.92rem", color:form.mostrarEnWeb?C.green:C.muted, fontWeight:600 }}>{form.mostrarEnWeb?"✓ Visible en la web pública":"Oculta — no aparece en la web"}</span>
@@ -1148,5 +1148,5 @@ export default function SitioWeb() {
 }
 
 function Tag({ children }) {
-  return <span style={{ background:"rgba(255,255,255,0.07)", color:"#c9d1d9", fontSize:"0.72rem", padding:"2px 9px", borderRadius:10 }}>{children}</span>;
+  return <span style={{ background:C.greenDim, color:C.muted, fontSize:"0.72rem", padding:"2px 9px", borderRadius:10 }}>{children}</span>;
 }
