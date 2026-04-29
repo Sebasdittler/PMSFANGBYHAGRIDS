@@ -4736,7 +4736,7 @@ function App() {
                   <FieldRow label="Lavadero" value={armLavadero} onChange={setArmLavadero} placeholder="0"/>
                 </div>
                 <div>
-                  <label style={C.lbl}>% Comisión Hagrids</label>
+                  <label style={C.lbl}>% Comisión AUCEN</label>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
                     <input type="number" min="0" max="100"
                       style={{...C.inp,marginBottom:0,width:90,textAlign:"center",fontWeight:700}}
@@ -4763,7 +4763,7 @@ function App() {
                       ["Al propietario (x noche)", fmtN(Math.round(armCalc.montoOwnerNoche), armCur), "#3B6E52"],
                       ["Limpieza",         fmtN(armCalc.limpieza,   armCur), T.textSub],
                       ["Lavadero",         fmtN(armCalc.lavadero,   armCur), T.textSub],
-                      ["Comisión Hagrids", fmtN(Math.round(armCalc.comisionHagrids), armCur), "#B5743E"],
+                      ["Comisión AUCEN", fmtN(Math.round(armCalc.comisionHagrids), armCur), "#B5743E"],
                     ].map(([l,v,c])=>(
                       <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${T.borderRow}`,fontSize:13}}>
                         <span style={{color:T.textSub}}>{l}</span>
@@ -5024,7 +5024,7 @@ function App() {
                       value={comTotal1} onChange={e=>setComTotal1(e.target.value)}/>
                   </div>
                   <div>
-                    <label style={C.lbl}>Comisión Hagrids (%)</label>
+                    <label style={C.lbl}>Comisión AUCEN (%)</label>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
                       <input type="number" min="0" max="100" style={{...C.inp,marginBottom:0,width:90,textAlign:"center",fontWeight:700}}
                         value={comPct1} onChange={e=>setComPct1(e.target.value)}/>
@@ -5035,7 +5035,7 @@ function App() {
                 {comVal1 !== null && (
                   <div style={{background:T.bgSurface,borderRadius:10,padding:"12px 14px"}}>
                     {resRow("Monto total de reserva", fmt(total1))}
-                    {resRow("Comisión Hagrids (" + pct1 + "%)", fmt(comVal1), "var(--primary)")}
+                    {resRow("Comisión AUCEN (" + pct1 + "%)", fmt(comVal1), "var(--primary)")}
                     {resRow("Le queda al propietario", fmt(propVal1), "#245040")}
                   </div>
                 )}
@@ -5466,7 +5466,7 @@ function App() {
     const ownerInvalid   = ownerNegative || ownerExcede;
     return (
       <div style={{marginBottom:14}}>
-        <label style={{...C.lbl,marginBottom:8}}>Comisión Hagrids</label>
+        <label style={{...C.lbl,marginBottom:8}}>Comisión AUCEN</label>
         {/* Toggle de modo */}
         <div style={{display:"flex",borderRadius:10,border:`1.5px solid ${T.border}`,overflow:"hidden",marginBottom:12}}>
           {[{v:"porcentaje",label:"% Porcentaje"},{v:"valorAgregado",label:"📊 Valor agregado"}].map(({v,label})=>{
