@@ -4089,7 +4089,7 @@ function App() {
         const id=`${p.id}-${mes}`;
         // Mismo criterio que rep useMemo: solo ci del mes (evita doble conteo)
         const tieneRes  = res.some(r=>r.pid===p.id&&(r.ci||"").startsWith(mes));
-        const tieneTasks= tasks.some(t=>t.pid===p.id&&t.date.startsWith(mes)&&t.status==="completado"&&t.cost>0);
+        const tieneTasks= tasks.some(t=>t.pid===p.id&&t.date.startsWith(mes)&&t.status==="completado");
         const tieneGas  = gastos.some(g=>g.pid===p.id&&g.date.startsWith(mes));
         if(!tieneRes&&!tieneTasks&&!tieneGas) return;
         const inARS = res.filter(r=>r.pid===p.id&&(r.ci||"").startsWith(mes)&&r.cur==="ARS").reduce((s,r)=>s+r.amt,0);
