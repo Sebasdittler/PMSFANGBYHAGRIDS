@@ -1400,7 +1400,7 @@ function App() {
     const rr=res.filter(r=>r.pid===rPid&&(r.ci||"").startsWith(rMonth));
     // Señas: pagos parciales recibidos este mes, cuya reserva puede estar en otro período
     const senias=res.filter(r=>r.pid===rPid&&(r.paidAmount||0)>0&&r.seniaDate&&r.seniaDate.startsWith(rMonth)&&!(r.ci||"").startsWith(rMonth));
-    const tt=tasks.filter(t=>t.pid===rPid&&t.date.startsWith(rMonth)&&t.status==="completado");
+    const tt=tasks.filter(t=>t.pid===rPid&&t.date.startsWith(rMonth));
     const gg=gastos.filter(g=>g.pid===rPid&&g.date.startsWith(rMonth));
     const rrIds=rr.map(r=>r.id);
     const lavByRes=Object.fromEntries(rrIds.map(rid=>{
@@ -1459,7 +1459,7 @@ function App() {
         if(end>start) diasOcMes+=Math.round((end-start)/(1000*60*60*24));
       });
       const rr=res.filter(r=>r.pid===rPid&&(r.ci||"").startsWith(mes));
-      const tt=tasks.filter(t=>t.pid===rPid&&t.date.startsWith(mes)&&t.status==="completado");
+      const tt=tasks.filter(t=>t.pid===rPid&&t.date.startsWith(mes));
       const gg=gastos.filter(g=>g.pid===rPid&&g.date.startsWith(mes));
       const lavItems=laundry.filter(l=>{
         const pid = l.isManual ? l.pidManual : gr(l.rid).pid;
@@ -4094,7 +4094,7 @@ function App() {
         if(!tieneRes&&!tieneTasks&&!tieneGas) return;
         const inARS = res.filter(r=>r.pid===p.id&&(r.ci||"").startsWith(mes)&&r.cur==="ARS").reduce((s,r)=>s+r.amt,0);
         const inUSD = res.filter(r=>r.pid===p.id&&(r.ci||"").startsWith(mes)&&r.cur==="USD").reduce((s,r)=>s+r.amt,0);
-        const costos= tasks.filter(t=>t.pid===p.id&&t.date.startsWith(mes)&&t.status==="completado").reduce((s,t)=>s+t.cost,0)
+        const costos= tasks.filter(t=>t.pid===p.id&&t.date.startsWith(mes)).reduce((s,t)=>s+t.cost,0)
                      +gastos.filter(g=>g.pid===p.id&&g.date.startsWith(mes)).reduce((s,g)=>s+g.amt,0)
                      +laundry.filter(l=>{ const pid2=l.isManual?l.pidManual:gr(l.rid).pid; return pid2===p.id&&l.date.startsWith(mes);}).reduce((s,l)=>s+calcLavTotal(l,getLavPrices(l.lavId)),0);
         todosReportes.push({id, pid:p.id, prop:p, mes, inARS, inUSD, costos, cobrado:cobradosIds.includes(id)});
