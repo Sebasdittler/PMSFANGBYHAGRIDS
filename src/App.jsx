@@ -3602,7 +3602,11 @@ function App() {
                 ))}</tbody>
               </table>
             </div>}
-            <div style={{borderTop:"1px solid #e8e5de",paddingTop:14,marginTop:8,fontSize:11,color:T.textMut,textAlign:"center"}}>
+            <div style={{borderTop:"2px solid #245040",marginTop:8,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",background:T.bgInput,borderRadius:"0 0 8px 8px"}}>
+              <span style={{fontWeight:700,fontSize:13,textTransform:"uppercase",letterSpacing:1,color:T.text}}>Total gastos</span>
+              <span style={{fontFamily:"'Cinzel',serif",fontSize:16,fontWeight:800,color:"var(--accent)"}}>{$$(d.cost+d.totalLav+d.totalGastos)}</span>
+            </div>
+            <div style={{borderTop:"1px solid #e8e5de",paddingTop:10,marginTop:6,fontSize:11,color:T.textMut,textAlign:"center"}}>
               Generado el {fmtD(TODAY)} · FANG by AUCEN · Software de gestión de propiedades
             </div>
           </div>
