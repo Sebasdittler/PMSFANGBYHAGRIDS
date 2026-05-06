@@ -594,6 +594,7 @@ function App() {
   // forms
   const [resF,  setResF]  = useState({pid:"p1",guest:"",tel:"",plat:"Airbnb",ci:"",co:"",amt:"",cur:"ARS",senia:"",seniaDate:"",pax:"",bebes:"",nota:"",comision:10,comisionMode:"porcentaje",precioOwner:"",taskPre:false,taskPost:true});
   const [taskF, setTaskF] = useState({pid:"p1",type:"limpieza",desc:"",date:"",cost:""});
+  const [editTaskId, setEditTaskId] = useState(null);
   const [propF, setPropF] = useState({name:"",owners:[{name:"",fnac:"",profesion:""}],color:"#3B6E52",direccion:"",dormitorios:[],notas:"",icalUrls:[]});
   const [editPropId, setEditPropId] = useState(null);
   const [lavF,  setLavF]  = useState({rid:"1",lavId:"1",date:"",...emptyItems(),isManual:false,guestManual:"",pidManual:"1"});
@@ -1238,7 +1239,30 @@ function App() {
       setTasks(t=>t.filter(x=>x.id!==nt.id));
       showToast("Error al guardar, reintentá");
     });
-    setShowTM(false); setTaskF({pid:"p1",type:"limpieza",desc:"",date:"",cost:""});
+    setShowTM(false); setTaskF({pid:"p1",type:"limpieza",desc:"",date:"",cost:""}); setEditTaskId(null);
+  };
+  const saveEditTask = () => {
+    if(!canWrite()) return;
+    const t = _tasks.find(x=>x.id===editTaskId);
+    if(!t) return;
+    if(!isOwnedRecord(t.pid)) return;
+    const isAgenda = taskF.type==="administracion"||taskF.type==="redes_contenido";
+    const upd = {...t, type:taskF.type, pid:isAgenda?(taskF.pid||"0"):taskF.pid, desc:taskF.desc, date:taskF.date||TODAY, cost:+(taskF.cost)||0};
+    setTasks(ts=>ts.map(x=>x.id===editTaskId?upd:x));
+    fbSetR("tasks",editTaskId,upd,()=>{ setTasks(ts=>ts.map(x=>x.id===editTaskId?t:x)); showToast("Error al guardar, reintentá"); });
+    setShowTM(false); setTaskF({pid:"p1",type:"limpieza",desc:"",date:"",cost:""}); setEditTaskId(null);
+  };
+  const deleteTask = t => {
+    if(!canWrite()) return;
+    if(!window.confirm(`¿Eliminar "${t.desc}"? Esta acción no se puede deshacer.`)) return;
+    const prev = _tasks.find(x=>x.id===t.id);
+    setTasks(ts=>ts.filter(x=>x.id!==t.id));
+    fbDelR("tasks",t.id,()=>{ if(prev)setTasks(ts=>[...ts,prev]); showToast("Error al guardar, reintentá"); });
+  };
+  const openEditTask = t => {
+    setTaskF({pid:t.pid||"p1", type:t.type, desc:t.desc, date:t.date||"", cost:t.cost||""});
+    setEditTaskId(t.id);
+    setShowTM(true);
   };
   /* ─────────────────────────────────────────────────────
      4g. MUTACIONES — PROPIEDADES
@@ -1328,7 +1352,7 @@ function App() {
     const t=_tasks.find(x=>x.id===id);
     if(t) {
       if(!isOwnedRecord(t.pid)) return;
-      const upd={...t,status,...(hours!==null?{hours}:{})};
+      const upd={...t,status,...(hours!==null?{hours}:{}),...(status==="completado"?{completedDate:TODAY}:{completedDate:null})};
       setTasks(ts=>ts.map(x=>x.id===id?upd:x));
       fbSetR("tasks",id,upd,()=>{
         setTasks(ts=>ts.map(x=>x.id===id?t:x));
@@ -1353,7 +1377,7 @@ function App() {
     const taskUpd = _tasks.find(x=>x.id===hoursModal.taskId);
     if(taskUpd) {
       if(!isOwnedRecord(taskUpd.pid)) return;
-      const upd = {...taskUpd, status:"completado", hours:hs, cost};
+      const upd = {...taskUpd, status:"completado", hours:hs, cost, completedDate:TODAY};
       setTasks(t=>t.map(x=>x.id===hoursModal.taskId?upd:x));
       fbSetR("tasks", hoursModal.taskId, upd, () => {
         setTasks(t=>t.map(x=>x.id===hoursModal.taskId?taskUpd:x));
@@ -2758,7 +2782,11 @@ function App() {
               </div>
             )}
           </div>
-          <span style={C.badge(t.status)}>{STATUS[t.status]?.label}</span>
+          <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0}}>
+            <span style={C.badge(t.status)}>{STATUS[t.status]?.label}</span>
+            {canWrite()&&!done&&<button title="Editar" onClick={()=>openEditTask(t)} className="fang-btns" style={{...C.btns("o"),padding:"4px 7px",fontSize:12,opacity:0.7}}>✏️</button>}
+            {canWrite()&&<button title="Eliminar" onClick={()=>deleteTask(t)} className="fang-btns" style={{...C.btns("d"),padding:"4px 7px",fontSize:12,color:"#C84040",opacity:0.7}}>🗑️</button>}
+          </div>
         </div>
       );
     };
@@ -2786,7 +2814,11 @@ function App() {
               <span>· {fmtD(t.date)}</span>
             </div>
           </div>
-          <span style={C.badge(t.status)}>{STATUS[t.status]?.label}</span>
+          <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0}}>
+            <span style={C.badge(t.status)}>{STATUS[t.status]?.label}</span>
+            {canWrite()&&!done&&<button title="Editar" onClick={()=>openEditTask(t)} className="fang-btns" style={{...C.btns("o"),padding:"4px 7px",fontSize:12,opacity:0.7}}>✏️</button>}
+            {canWrite()&&<button title="Eliminar" onClick={()=>deleteTask(t)} className="fang-btns" style={{...C.btns("d"),padding:"4px 7px",fontSize:12,color:"#C84040",opacity:0.7}}>🗑️</button>}
+          </div>
         </div>
       );
     };
@@ -2821,7 +2853,7 @@ function App() {
     return (
       <div>
         <div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}>
-          {canWrite() && <button className="fang-btn" style={C.btn("a")} onClick={()=>setShowTM(true)}>+ Tarea</button>}
+          {canWrite() && <button className="fang-btn" style={C.btn("a")} onClick={()=>{ setEditTaskId(null); setTaskF({pid:allowedProps[0]?.id||"p1",type:"limpieza",desc:"",date:"",cost:""}); setShowTM(true); }}>+ Tarea</button>}
         </div>
         <Sec title="Limpieza" icon="🧹" items={limpiezas}/>
         <Sec title="Mantenimiento" icon="🔧" items={mantos}/>
@@ -3462,7 +3494,7 @@ function App() {
                 <tbody>
                   {d.clean.map(t=><tr key={t.id} style={{borderBottom:`1px solid ${T.border}`}}>
                     <td style={{padding:"8px 10px"}}>{t.desc}</td>
-                    <td style={{padding:"8px 10px"}}>{fmtD(t.date)}</td>
+                    <td style={{padding:"8px 10px"}}>{fmtD(t.completedDate||t.date)}</td>
                     <td style={{padding:"8px 10px",color:"#3B6E52",fontWeight:600}}>{t.hours>0?`${t.hours}hs`:"—"}</td>
                     <td style={{padding:"8px 10px",fontWeight:700,color:"#3B6E52"}}>{t.cost>0?$$(t.cost):"—"}</td>
                   </tr>)}
@@ -3481,7 +3513,7 @@ function App() {
                 <tbody>
                   {d.maint.map(t=><tr key={t.id} style={{borderBottom:`1px solid ${T.border}`}}>
                     <td style={{padding:"8px 10px"}}>{t.desc}</td>
-                    <td style={{padding:"8px 10px"}}>{fmtD(t.date)}</td>
+                    <td style={{padding:"8px 10px"}}>{fmtD(t.completedDate||t.date)}</td>
                     <td style={{padding:"8px 10px",fontWeight:700,color:"#B5743E"}}>{t.cost>0?$$(t.cost):"—"}</td>
                   </tr>)}
                   <tr style={{background:"var(--bg-elevated)"}}>
@@ -3500,7 +3532,7 @@ function App() {
                   {d.admin.map(t=><tr key={t.id} style={{borderBottom:`1px solid ${T.border}`}}>
                     <td style={{padding:"8px 10px"}}>{t.desc}</td>
                     <td style={{padding:"8px 10px",color:"#8B3A8A",fontSize:12}}>{t.type==="redes_contenido"?"📱 Redes":"📋 Admin"}</td>
-                    <td style={{padding:"8px 10px"}}>{fmtD(t.date)}</td>
+                    <td style={{padding:"8px 10px"}}>{fmtD(t.completedDate||t.date)}</td>
                     <td style={{padding:"8px 10px",fontWeight:700,color:"#8B3A8A"}}>{t.cost>0?$$(t.cost):"—"}</td>
                   </tr>)}
                   <tr style={{background:"var(--bg-elevated)"}}>
@@ -5715,12 +5747,14 @@ function App() {
 
   /* ── 7b. ModalTarea ── */
   const ModalTarea=()=>{
+    const isEdit = !!editTaskId;
     const isAgenda = taskF.type==="administracion"||taskF.type==="redes_contenido";
     const canSave = taskF.desc && (isAgenda || taskF.date);
+    const handleClose = () => { confirmClose(!!taskF.desc,()=>{ setShowTM(false); setEditTaskId(null); }); };
     return (
-    <div className="fang-overlay" style={C.ov} onClick={e=>e.target===e.currentTarget&&confirmClose(!!taskF.desc,()=>setShowTM(false))}>
+    <div className="fang-overlay" style={C.ov} onClick={e=>e.target===e.currentTarget&&handleClose()}>
       <div className="fang-modal" style={C.mod}>
-        <div style={{fontFamily:"'Cinzel',serif",fontSize:19,fontWeight:700,marginBottom:18}}>Nueva tarea</div>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:19,fontWeight:700,marginBottom:18}}>{isEdit?"Editar tarea":"Nueva tarea"}</div>
         <label style={C.lbl}>Tipo</label>
         <select style={C.sel} value={taskF.type} onChange={e=>setTaskF(f=>({...f,type:e.target.value}))}>
           <option value="limpieza">🧹 Limpieza</option>
@@ -5759,8 +5793,8 @@ function App() {
         )}
 
         <div style={{display:"flex",gap:10}}>
-          <button style={{...C.btn("o"),flex:1}} onClick={()=>confirmClose(!!taskF.desc,()=>setShowTM(false))}>Cancelar</button>
-          <button style={{...C.btn("a"),flex:1,opacity:canSave?1:0.45,cursor:canSave?"pointer":"not-allowed"}} disabled={!canSave} onClick={addTask}>Guardar</button>
+          <button style={{...C.btn("o"),flex:1}} onClick={handleClose}>Cancelar</button>
+          <button style={{...C.btn("a"),flex:1,opacity:canSave?1:0.45,cursor:canSave?"pointer":"not-allowed"}} disabled={!canSave} onClick={isEdit?saveEditTask:addTask}>Guardar</button>
         </div>
       </div>
     </div>
