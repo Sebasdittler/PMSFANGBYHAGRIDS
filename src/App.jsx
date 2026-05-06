@@ -3095,6 +3095,10 @@ function App() {
                           className="fang-btns" style={{...C.btns("p"),marginTop:8,width:"100%",fontSize:11,padding:"5px 8px"}}>
                           👕 Enviar al lavadero →
                         </button>
+                        {canWrite()&&<div style={{display:"flex",gap:5,marginTop:5}}>
+                          <button onClick={()=>openEditRes(r)} className="fang-btns" style={{...C.btns("d"),flex:1,fontSize:10,padding:"5px 6px"}}>✏️ Editar</button>
+                          <button onClick={()=>setDeleteResId(r.id)} className="fang-btns" style={{...C.btns("d"),flex:1,fontSize:10,padding:"5px 6px",color:"#C84040"}}>🗑️ Eliminar</button>
+                        </div>}
                       </div>
                     );
                   })}
