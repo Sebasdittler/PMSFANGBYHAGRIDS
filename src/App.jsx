@@ -1247,7 +1247,7 @@ function App() {
     if(!t) return;
     if(!isOwnedRecord(t.pid)) return;
     const isAgenda = taskF.type==="administracion"||taskF.type==="redes_contenido";
-    const upd = {...t, type:taskF.type, pid:isAgenda?(taskF.pid||"0"):taskF.pid, desc:taskF.desc, date:taskF.date||TODAY, cost:+(taskF.cost)||0};
+    const upd = {...t, type:taskF.type, pid:isAgenda?(taskF.pid||"0"):taskF.pid, desc:taskF.desc, date:taskF.date||TODAY, cost:taskF.cost!==""?+(taskF.cost):t.cost};
     setTasks(ts=>ts.map(x=>x.id===editTaskId?upd:x));
     fbSetR("tasks",editTaskId,upd,()=>{ setTasks(ts=>ts.map(x=>x.id===editTaskId?t:x)); showToast("Error al guardar, reintentá"); });
     setShowTM(false); setTaskF({pid:"p1",type:"limpieza",desc:"",date:"",cost:""}); setEditTaskId(null);
@@ -2928,6 +2928,7 @@ function App() {
                     </div>
                     <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
                       <span style={{fontSize:11,padding:"3px 9px",borderRadius:20,background:"var(--primary-soft)",color:"var(--primary)",fontWeight:600}}>Completado</span>
+                      {canWrite()&&<button title="Editar" onClick={()=>openEditTask(t)} className="fang-btns" style={{...C.btns("o"),padding:"4px 7px",fontSize:12,opacity:0.7,flexShrink:0}}>✏️</button>}
                       <button
                         title="Eliminar tarea"
                         onClick={()=>{ if(!canWrite()) return; if(window.confirm(`¿Eliminar "${t.desc}"? Esta acción no se puede deshacer.`)){ const prevT=_tasks.find(x=>x.id===t.id); setTasks(ts=>ts.filter(x=>x.id!==t.id)); fbDelR("tasks",t.id,()=>{ if(prevT)setTasks(ts=>[...ts,prevT]); showToast("Error al guardar, reintentá"); }); } }}
