@@ -1400,7 +1400,7 @@ function App() {
     const rr=res.filter(r=>r.pid===rPid&&(r.ci||"").startsWith(rMonth));
     // Señas: pagos parciales recibidos este mes, cuya reserva puede estar en otro período
     const senias=res.filter(r=>r.pid===rPid&&(r.paidAmount||0)>0&&r.seniaDate&&r.seniaDate.startsWith(rMonth)&&!(r.ci||"").startsWith(rMonth));
-    const tt=tasks.filter(t=>t.pid===rPid&&t.date.startsWith(rMonth)&&t.status==="completado");
+    const tt=tasks.filter(t=>t.pid===rPid&&(t.completedDate||t.date).startsWith(rMonth)&&t.status==="completado");
     const gg=gastos.filter(g=>g.pid===rPid&&g.date.startsWith(rMonth));
     const rrIds=rr.map(r=>r.id);
     const lavByRes=Object.fromEntries(rrIds.map(rid=>{
@@ -1459,7 +1459,7 @@ function App() {
         if(end>start) diasOcMes+=Math.round((end-start)/(1000*60*60*24));
       });
       const rr=res.filter(r=>r.pid===rPid&&(r.ci||"").startsWith(mes));
-      const tt=tasks.filter(t=>t.pid===rPid&&t.date.startsWith(mes)&&t.status==="completado");
+      const tt=tasks.filter(t=>t.pid===rPid&&(t.completedDate||t.date).startsWith(mes)&&t.status==="completado");
       const gg=gastos.filter(g=>g.pid===rPid&&g.date.startsWith(mes));
       const lavItems=laundry.filter(l=>{
         const pid = l.isManual ? l.pidManual : gr(l.rid).pid;
@@ -1473,7 +1473,7 @@ function App() {
       const costos=tt.reduce((s,t)=>s+t.cost,0)+gg.reduce((s,g)=>s+g.amt,0)+lavCost;
       // Unified cost items for detail
       const costItems=[
-        ...tt.map(t=>({desc:t.desc,fecha:t.date,monto:t.cost})),
+        ...tt.map(t=>({desc:t.desc,fecha:t.completedDate||t.date,monto:t.cost})),
         ...gg.map(g=>({desc:g.desc,fecha:g.date,monto:g.amt})),
         ...lavItems.map(l=>{
           const info = l.isManual ? {guest:l.guestManual||"Recambio"} : gr(l.rid);
