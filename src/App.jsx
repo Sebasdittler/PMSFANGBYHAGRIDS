@@ -1363,7 +1363,8 @@ function App() {
   const checkTask = t => {
     if(t.status==="completado"){ updTask(t.id,"pendiente"); return; }
     if(t.type==="limpieza"||t.type==="limpieza_pre"||t.type==="limpieza_post"){
-      setHoursModal({taskId:t.id, valorHora:t.valorHora||""});
+      const latestT = _tasks.find(x=>x.id===t.id)||t;
+      setHoursModal({taskId:t.id, valorHora:latestT.valorHora||"", completedDateInput:TODAY});
       setHoursVal("");
     }
     else updTask(t.id,"completado");
@@ -1377,7 +1378,7 @@ function App() {
     const taskUpd = _tasks.find(x=>x.id===hoursModal.taskId);
     if(taskUpd) {
       if(!isOwnedRecord(taskUpd.pid)) return;
-      const upd = {...taskUpd, status:"completado", hours:hs, cost, completedDate:TODAY};
+      const upd = {...taskUpd, status:"completado", hours:hs, cost, completedDate:hoursModal.completedDateInput||TODAY};
       setTasks(t=>t.map(x=>x.id===hoursModal.taskId?upd:x));
       fbSetR("tasks", hoursModal.taskId, upd, () => {
         setTasks(t=>t.map(x=>x.id===hoursModal.taskId?taskUpd:x));
@@ -7020,15 +7021,23 @@ function App() {
       {hoursModal&&(()=>{
         const hs = +hoursVal || 0;
         const vh = +(hoursModal.valorHora) || 0;
-        const canConfirm = hs > 0 && vh > 0;
+        const canConfirm = hs > 0 && vh > 0 && !!hoursModal.completedDateInput;
         return (
         <div className="fang-overlay" style={C.ov} onClick={e=>e.target===e.currentTarget&&setHoursModal(null)}>
           <div className="fang-modal" style={{...C.mod,maxWidth:340,textAlign:"center"}}>
             <div style={{fontSize:32,marginBottom:10}}>🧹</div>
             <div style={{fontFamily:"'Cinzel',serif",fontSize:19,fontWeight:700,marginBottom:6}}>Limpieza completada</div>
             <div style={{fontSize:13,color:T.textSub,marginBottom:20}}>
-              Ingresá las horas trabajadas y el valor por hora.<br/>
-              <span style={{color:"#C84040",fontWeight:600}}>Ambos campos son obligatorios</span> para que figure en el reporte del propietario.
+              Ingresá la fecha de realización, las horas trabajadas y el valor por hora.<br/>
+              <span style={{color:"#C84040",fontWeight:600}}>Todos los campos son obligatorios</span> para que figure en el reporte del propietario.
+            </div>
+            <div style={{marginBottom:12,textAlign:"left"}}>
+              <label style={{...C.lbl,display:"block"}}>Fecha de realización <span style={{color:"#C84040"}}>*</span></label>
+              <input
+                type="date"
+                style={{...C.inp,marginBottom:0}}
+                value={hoursModal.completedDateInput||""}
+                onChange={e=>setHoursModal(m=>({...m,completedDateInput:e.target.value}))}/>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:6,textAlign:"left"}}>
               <div>
@@ -7057,7 +7066,7 @@ function App() {
               </div>
             ) : (
               <div style={{background:"var(--bg-elevated)",borderRadius:12,padding:"10px 14px",marginBottom:16,fontSize:12,color:"#C84040",border:"1px solid #fca5a5"}}>
-                ⚠️ Completá las horas y el valor por hora para poder confirmar.
+                ⚠️ Completá la fecha, las horas y el valor por hora para poder confirmar.
               </div>
             )}
             <div style={{display:"flex",gap:10}}>
