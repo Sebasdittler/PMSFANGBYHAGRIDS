@@ -184,9 +184,9 @@ const fmtD  = s => { if(!s) return ""; const [y,m,d]=s.split("-"); return `${d}/
         {{to_email}}  {{subject}}  {{message}}
    4. Copiá los IDs a las constantes de abajo.
 ══════════════════════════════════════════════════════ */
-const EMAILJS_SERVICE_ID  = "TU_SERVICE_ID";   // ej: "service_abc123"
-const EMAILJS_TEMPLATE_ID = "TU_TEMPLATE_ID";  // ej: "template_xyz789"
-const EMAILJS_PUBLIC_KEY  = "TU_PUBLIC_KEY";   // ej: "AbCdEfGhIjKlMnOp"
+const EMAILJS_SERVICE_ID  = "Hagrids fang-vite";
+const EMAILJS_TEMPLATE_ID = "template_snx624q";
+const EMAILJS_PUBLIC_KEY  = "ydg83pym869m0Z-YJ";
 const NOTIF_TO_EMAIL      = "hola@aucen.com.ar";
 const EMAILJS_READY       = EMAILJS_SERVICE_ID !== "TU_SERVICE_ID";
 
@@ -907,8 +907,9 @@ function App() {
       if(!dtstart || !dtend || dtend <= dtstart) return;
       // Ignorar bloqueos genéricos de Airbnb ("Not available", "Airbnb (Not available)", etc.)
       const isBlock = /not available|bloqueado|blocked|airbnb \(not/i.test(summary);
+      const stableKey = uid ? uid : `${dtstart}-${idx}`;
       events.push({
-        id: `ext-${pid}-${urlIdx}-${uid||dtstart}-${idx}`,
+        id: `ext-${pid}-${urlIdx}-${stableKey}`,
         pid,
         guest: isBlock ? "🔒 Bloqueado" : summary,
         plat: source,
@@ -931,27 +932,29 @@ function App() {
     return [];
   };
 
-  // Proxies CORS públicos — se prueban en orden si el primero falla
-  const CORS_PROXIES = [
-    "https://corsproxy.io/?",
-    "https://thingproxy.freeboard.io/fetch/",
-    "https://api.codetabs.com/v1/proxy?quest=",
+  // Proxies para fetch iCal — función que recibe la url destino y devuelve la URL completa.
+  // /api/ical va primero (Vercel function, sin CORS). Los públicos son fallback para dev local.
+  const ICAL_PROXIES = [
+    u => `/api/ical?url=${encodeURIComponent(u)}`,
+    u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+    u => `https://thingproxy.freeboard.io/fetch/${u}`,
+    u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
   ];
 
   // Hace fetch de una URL iCal individual y devuelve los eventos parseados (o [])
   const fetchOneIcalUrl = async (url, prop, urlIdx) => {
     let text = null;
     let lastErr = null;
-    for(const proxy of CORS_PROXIES) {
+    for(const makeUrl of ICAL_PROXIES) {
       try {
-        const fullUrl = proxy + encodeURIComponent(url);
+        const fullUrl = makeUrl(url);
         const res_ = await fetch(fullUrl, {signal: AbortSignal.timeout(10000)});
         if(!res_.ok) throw new Error(`HTTP ${res_.status}`);
         text = await res_.text();
         break;
       } catch(e) {
         lastErr = e;
-        console.warn(`iCal proxy fallido [${proxy}]:`, e.message);
+        console.warn(`iCal proxy fallido [${makeUrl(url).slice(0,60)}]:`, e.message);
       }
     }
     if(!text) throw lastErr || new Error("Todos los proxies fallaron");
@@ -977,8 +980,8 @@ function App() {
           nuevas.forEach(r => {
             // Guardar en Firestore para que bloquee fechas entre sesiones
             fbSet("reservas", r.id, {...r, ownerId:"system", paidAmount:0, payments:[]});
-            // Push notification
-            sendNotification(
+            // Push notification (email lo maneja notificarNuevaReservaIcal debajo)
+            sendBrowserNotif(
               `📅 Nueva reserva iCal — ${prop.name}`,
               `${r.guest||"Huésped"} · ${fmtD(r.ci)} → ${fmtD(r.co)}`
             );
