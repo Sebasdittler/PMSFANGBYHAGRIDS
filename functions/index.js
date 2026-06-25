@@ -10,7 +10,7 @@ initializeApp();
 
 // ── URL pública de la app en Vercel ────────────────────────────────────────
 // Reemplazá este valor con la URL real de tu deploy en Vercel.
-const APP_URL = "https://fang-hagrids.vercel.app";
+const APP_URL = "https://fangfinal.vercel.app";
 
 /**
  * Se dispara cada vez que se crea un documento nuevo en la colección "reservas".
