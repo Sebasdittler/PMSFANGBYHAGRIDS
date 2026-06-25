@@ -589,6 +589,7 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(()=>{ try{ return localStorage.getItem("fang-sb-collapsed")==="1"; }catch{ return false; } });
   const [isMobile, setIsMobile] = useState(()=>typeof window!=='undefined'&&window.innerWidth<=640);
   const [resMenuId, setResMenuId] = useState(null);
+  const [importIcalRes, setImportIcalRes] = useState(null); // reserva iCal origen de un import en curso
   const [futurasPid, setFuturasPid] = useState(null); // filtro propiedad en reservas futuras
 
   // forms
@@ -1073,7 +1074,7 @@ function App() {
   ───────────────────────────────────────────────────── */
   const checkOverbook = (pid, ci, co, excludeId=null) => {
     const manuals = res
-      .filter(r => r.id!==excludeId && r.pid===pid && r.ci<co && r.co>ci)
+      .filter(r => r.id!==excludeId && !r.importedAs && r.pid===pid && r.ci<co && r.co>ci)
       .map(r => ({...r, _external: false}));
     const savedIds = new Set(res.map(r=>r.id));
     const externals = externalRes
@@ -1137,8 +1138,24 @@ function App() {
     return result;
   };
 
+  // Abre el modal de nueva reserva pre-cargado con datos de una reserva iCal
+  const importarIcal = (r) => {
+    const platNorm = r.source==="airbnb"?"Airbnb":r.source==="booking"?"Booking":"Airbnb";
+    const guestVal = (r.guest && !/bloqueado/i.test(r.guest)) ? r.guest : "";
+    setResF({
+      pid:String(r.pid), guest:guestVal, tel:"", plat:platNorm,
+      ci:r.ci, co:r.co, amt:"", cur:"ARS", senia:"", seniaDate:"",
+      pax:"", bebes:"", nota:r.nota||"",
+      comision:String(comisionPct), comisionMode:"porcentaje", precioOwner:"",
+      taskPre:false, taskPost:true,
+    });
+    setImportIcalRes(r);
+    setCalDay(null);
+    setShowRM(true);
+  };
+
   const addRes = async () => {
-    const conflicts = checkOverbook(resF.pid, resF.ci, resF.co);
+    const conflicts = checkOverbook(resF.pid, resF.ci, resF.co, importIcalRes?.id);
     if(conflicts.length>0){
       // Bloqueo total: nunca permitir guardar con conflicto (ni manual ni externo)
       setOverbookWarn({conflicts, onForce: null}); return;
@@ -1148,6 +1165,13 @@ function App() {
     const newTasks = makeResTasks(nr, resF.taskPre, resF.taskPost);
     try {
       await saveReserva(nr);
+      if(importIcalRes) {
+        // Marcar el doc iCal como importado: queda en Firestore para que el próximo sync
+        // lo encuentre en savedIds y no lo vuelva a guardar como evento nuevo.
+        fbSet("reservas", importIcalRes.id, {...importIcalRes, importedAs: nr.id});
+        setExternalRes(prev => prev.filter(x => x.id !== importIcalRes.id));
+        setImportIcalRes(null);
+      }
       const propNombre = props_.find(p => p.id === nr.pid)?.name || nr.pid;
       notificarNuevaReserva(nr, propNombre, CURRENT_USER.email);
       setTasks(t=>[...t,...newTasks]);
@@ -2215,9 +2239,9 @@ function App() {
       }
     };
     // isStayDay: días realmente ocupados — d >= ci && d < co
-    const dayRes  =calDay?res.filter(r=>{const ci=toD(r.ci),co=toD(r.co),d=toD(calDay);return d>=ci&&d<co;}):[]; 
+    const dayRes  =calDay?res.filter(r=>{const ci=toD(r.ci),co=toD(r.co),d=toD(calDay);return d>=ci&&d<co&&!r.importedAs;}):[];
     // isCheckoutDay: reservas que hacen checkout hoy (parciales — no ocupan el día)
-    const dayCoRes=calDay?res.filter(r=>r.co===calDay):[];
+    const dayCoRes=calDay?res.filter(r=>r.co===calDay&&!r.importedAs):[];
     const dayTasks=calDay?tasks.filter(t=>t.date===calDay):[];
     const isCI=r=>r.ci===calDay, isCO=r=>r.co===calDay;
     const fmtAmt=r=>r.cur==="USD"?$$usd(r.amt):$$(r.amt);
@@ -2259,7 +2283,7 @@ function App() {
 
     const resIds = new Set(res.map(r=>r.id));
     const visRes=[
-      ...res.filter(r=>r.ci<=visLast&&r.co>=visFirst&&(calFilterPids.size===0||calFilterPids.has(r.pid))),
+      ...res.filter(r=>!r.importedAs&&r.ci<=visLast&&r.co>=visFirst&&(calFilterPids.size===0||calFilterPids.has(r.pid))),
       ...externalRes
           .map(normalizeExt)
           .filter(r=>!resIds.has(r.id)&&r.ci<=visLast&&r.co>=visFirst&&(calFilterPids.size===0||calFilterPids.has(r.pid))),
@@ -2327,6 +2351,27 @@ function App() {
                 {dayRes.length===0&&dayCoRes.length===0&&<div style={{fontSize:13,color:T.textMut,padding:"10px 0"}}>Sin reservas este día.</div>}
                 {dayRes.map(r=>{
                   const p=gp(r.pid),ci=isCI(r),co=isCO(r);
+                  // Card simplificado para reservas iCal (external:true) — solo muestra datos y el botón importar
+                  if(r.external) {
+                    const srcLabel = r.source==="airbnb"?"Airbnb":r.source==="booking"?"Booking":"Externa";
+                    const guestLabel = r.guest&&!/bloqueado/i.test(r.guest)?r.guest:"🔒 Bloqueado";
+                    const noches = Math.round((toD(r.co)-toD(r.ci))/(1000*60*60*24));
+                    return (
+                      <div key={r.id} style={{borderRadius:12,border:`1.5px solid ${p.color}33`,background:p.color+"0d",padding:"13px 14px",marginBottom:10}}>
+                        <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:6}}>
+                          <div style={{width:9,height:9,borderRadius:"50%",background:p.color,flexShrink:0}}/>
+                          <div style={{fontSize:14,fontWeight:700,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{guestLabel}</div>
+                          <span style={{fontSize:10,padding:"2px 7px",borderRadius:20,background:"#55555518",color:T.textMut,fontWeight:700}}>🔗 {srcLabel}</span>
+                        </div>
+                        <div style={{fontSize:12,color:T.textSub,marginBottom:6}}>{p.name} · {noches} {noches===1?"noche":"noches"}</div>
+                        <div style={{fontSize:12,color:T.textSub,marginBottom:10}}>{fmtD(r.ci)} → {fmtD(r.co)}</div>
+                        {canWrite()&&<button onClick={()=>importarIcal(r)} style={{...C.btn(),width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:13}}>
+                          🔗 Importar como reserva manual
+                        </button>}
+                      </div>
+                    );
+                  }
+                  // Card completo para reservas manuales
                   return (
                     <div key={r.id} style={{borderRadius:12,border:`1.5px solid ${p.color}33`,background:p.color+"0d",padding:"13px 14px",marginBottom:10}}>
                       <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:6}}>
@@ -2623,13 +2668,12 @@ function App() {
                       : bar.isCO  ? `${PILL_R} ${FLAT} ${FLAT} ${PILL_R}`
                       : FLAT;
                     const inset = 2;
-                    // CO bars: color sólido (igual que el resto de las barras)
-                    const barBg = isExt
-                      ? `${extColor}22`
-                      : p.color;
-                    const barOpacityFinal = isExt ? 1 : barOpacity;
-                    const barBorder = isExt?`1.5px dashed ${extColor}88`:"none";
-                    const barShadow = isExt?"none":`0 2px 6px ${p.color}55`;
+                    // Barras iCal y manuales usan el mismo estilo base (color por propiedad).
+                    // Las iCal se distinguen solo por el ícono 🔗 en el texto y la opacidad reducida.
+                    const barBg = p.color;
+                    const barOpacityFinal = isExt ? barOpacity * 0.85 : barOpacity;
+                    const barBorder = "none";
+                    const barShadow = `0 2px 6px ${p.color}55`;
                     // Sin inset derecho en bars CO (corte limpio al final del día)
                     const rightInset = (bar.isCO && !bar.isCI) ? 0 : (bar.isCO ? inset : 0);
                     return (
@@ -2652,20 +2696,18 @@ function App() {
                           border: barBorder,
                           boxShadow: barShadow,
                         }}>
-                        {isExt?(
-                          <span style={{fontSize:isMobile?8:9,fontWeight:700,color:extColor,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:3,letterSpacing:.2}}>
-                            {extSrc==="airbnb"?"✦":extSrc==="booking"?"▣":"⊘"}{" "}{extLabel}{p?.name?" · "+p.name:""}
-                          </span>
-                        ):(
-                          <span style={{fontSize:isMobile?8.5:9.5,color:"#fff",fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",letterSpacing:.1,textShadow:"0 1px 2px rgba(0,0,0,0.25)",textAlign:"center",width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:3}}>
-                            {bar.isCI&&!isMobile?"✈ ":""}{bar.r.guest}{bar.isCO&&!isMobile?" 🚪":""}
-                            {!bar.r.external&&bar.isCI&&(()=>{
-                              const s=getPaymentStatus(bar.r).status;
-                              const dot=s==="pagado"?"🟢":s==="parcial"?"🟡":"🔴";
-                              return <span style={{fontSize:isMobile?7:8,marginLeft:2}}>{dot}</span>;
-                            })()}
-                          </span>
-                        )}
+                        <span style={{fontSize:isMobile?8.5:9.5,color:"#fff",fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",letterSpacing:.1,textShadow:"0 1px 2px rgba(0,0,0,0.25)",textAlign:"center",width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:3}}>
+                          {isExt&&<span style={{fontSize:isMobile?7:8,opacity:0.9,flexShrink:0}}>🔗</span>}
+                          {isExt
+                            ? (bar.r.guest&&!/bloqueado/i.test(bar.r.guest)?bar.r.guest:extLabel)
+                            : <>{bar.isCI&&!isMobile?"✈ ":""}{bar.r.guest}{bar.isCO&&!isMobile?" 🚪":""}</>
+                          }
+                          {!isExt&&bar.isCI&&(()=>{
+                            const s=getPaymentStatus(bar.r).status;
+                            const dot=s==="pagado"?"🟢":s==="parcial"?"🟡":"🔴";
+                            return <span style={{fontSize:isMobile?7:8,marginLeft:2}}>{dot}</span>;
+                          })()}
+                        </span>
                       </div>
                     );
                   })}
@@ -5658,9 +5700,14 @@ function App() {
       }
     };
     return (
-    <div className="fang-overlay" style={C.ov} onClick={e=>e.target===e.currentTarget&&setShowRM(false)}>
+    <div className="fang-overlay" style={C.ov} onClick={e=>e.target===e.currentTarget&&(setShowRM(false),setImportIcalRes(null))}>
       <div className="fang-modal" style={C.mod}>
-        <div style={{fontFamily:"'Cinzel',serif",fontSize:19,fontWeight:700,marginBottom:4}}>Nueva reserva</div>
+        <div style={{fontFamily:"'Cinzel',serif",fontSize:19,fontWeight:700,marginBottom:4}}>{importIcalRes?"Importar reserva":"Nueva reserva"}</div>
+        {importIcalRes&&(
+          <div style={{fontSize:12,marginBottom:10,padding:"7px 10px",background:"var(--primary-soft)",color:"var(--primary)",borderRadius:8,fontWeight:600}}>
+            🔗 Pre-cargado desde {importIcalRes.source==="airbnb"?"Airbnb":importIcalRes.source==="booking"?"Booking":"iCal"} · Completá los datos faltantes
+          </div>
+        )}
         <div style={{fontSize:12,color:T.textMut,marginBottom:16}}><span style={{color:"#C84040"}}>*</span> Campos obligatorios</div>
 
         <label style={C.lbl}>Propiedad {req}</label>
@@ -5751,8 +5798,8 @@ function App() {
         </div>
 
         <div style={{display:"flex",gap:10}}>
-          <button style={{...C.btn("o"),flex:1}} onClick={()=>setShowRM(false)}>Cancelar</button>
-          <button style={{...C.btn(),flex:1}} onClick={handleTrySubmit}>Guardar</button>
+          <button style={{...C.btn("o"),flex:1}} onClick={()=>{setShowRM(false);setImportIcalRes(null);}}>Cancelar</button>
+          <button style={{...C.btn(),flex:1}} onClick={handleTrySubmit}>{importIcalRes?"Importar":"Guardar"}</button>
         </div>
       </div>
     </div>
