@@ -1,5 +1,6 @@
 ﻿import React, { useState, useMemo, useEffect } from 'react';
 import { notificarNuevaReserva, notificarReservaModificada, notificarReservaEliminada, notificarNuevaReservaIcal } from './notificaciones';
+import { initFCM } from './fcm';
 import SitioWeb from './SitioWeb';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -7551,6 +7552,8 @@ function App() {
             CURRENT_USER.role  = role;
             CURRENT_USER.email = user.email || "";
             setAuthed(true);
+            // Inicializar FCM push — silencioso si el browser no lo soporta
+            initFCM(user.uid, user.email || "").catch(() => {});
           } else {
             CURRENT_USER.id    = "anon";
             CURRENT_USER.role  = "owner";
