@@ -1043,11 +1043,16 @@ function App() {
   // Recupera historial iCal desde 2025-01-01 para propiedades seleccionadas (sin borrar nada)
   const recuperarHistorialIcal = async (nombresProp) => {
     const targetProps = props_.filter(p => nombresProp.some(n => (p.name||"").toLowerCase().includes(n.toLowerCase())));
-    if (!targetProps.length) { showToast("No se encontraron las propiedades"); return; }
+    if (!targetProps.length) {
+      showToast("⚠️ No se encontraron las propiedades: " + nombresProp.join(", "));
+      return;
+    }
     setRecuperandoIcal(true);
     let total = 0;
+    const errores = [];
     for (const prop of targetProps) {
       const urls = getIcalUrls(prop);
+      if (!urls.length) { errores.push(`${prop.name}: sin URL iCal`); continue; }
       for (let urlIdx = 0; urlIdx < urls.length; urlIdx++) {
         try {
           const events = await fetchOneIcalUrl(urls[urlIdx], prop, urlIdx);
@@ -1058,14 +1063,16 @@ function App() {
             fbSet("sitioWeb_ocupados", ev.id, { pid: ev.pid, ci: ev.ci, co: ev.co });
             total++;
           });
-          console.log(`[Recuperar] ${prop.name} url[${urlIdx}]: ${desde.length} eventos`);
+          showToast(`${prop.name}: ${desde.length} reservas del feed`);
         } catch(e) {
-          console.warn(`[Recuperar] Error ${prop.name}:`, e.message);
+          errores.push(`${prop.name}: ${e.message}`);
+          showToast(`⚠️ ${prop.name}: no se pudo obtener el feed iCal`);
         }
       }
     }
     setRecuperandoIcal(false);
-    showToast(`✅ ${total} reservas recuperadas de iCal`);
+    if (total > 0) showToast(`✅ ${total} reservas guardadas en total`);
+    if (errores.length) showToast(`⚠️ Errores: ${errores.join(" | ")}`);
   };
 
   /* ─────────────────────────────────────────────────────
