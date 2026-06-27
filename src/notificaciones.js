@@ -1,6 +1,6 @@
 // src/notificaciones.js
 
-const EMAILJS_SERVICE_ID = 'Hagrids fang-vite';
+const EMAILJS_SERVICE_ID = 'service_ho9leus';
 const EMAILJS_TEMPLATE_ID = 'template_snx624q';
 const EMAILJS_PUBLIC_KEY = 'ydg83pym869m0Z-YJ';
 

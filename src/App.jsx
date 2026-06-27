@@ -185,7 +185,7 @@ const fmtD  = s => { if(!s) return ""; const [y,m,d]=s.split("-"); return `${d}/
         {{to_email}}  {{subject}}  {{message}}
    4. Copiá los IDs a las constantes de abajo.
 ══════════════════════════════════════════════════════ */
-const EMAILJS_SERVICE_ID  = "Hagrids fang-vite";
+const EMAILJS_SERVICE_ID  = "service_ho9leus";
 const EMAILJS_TEMPLATE_ID = "template_snx624q";
 const EMAILJS_PUBLIC_KEY  = "ydg83pym869m0Z-YJ";
 const NOTIF_TO_EMAIL      = "hola@aucen.com.ar";
