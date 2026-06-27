@@ -994,7 +994,8 @@ function App() {
       const parsedIds = new Set(parsed.map(r=>r.id));
 
       // Limpiar docs externos obsoletos de Firestore y de sitioWeb_ocupados
-      res.filter(r => r.external && r.pid===prop.id && !r.importedAs && !parsedIds.has(r.id))
+      // IMPORTANTE: r.external === true (estricto) para nunca tocar reservas manuales
+      res.filter(r => r.external === true && r.pid===prop.id && !r.importedAs && !parsedIds.has(r.id))
          .forEach(r => { fbDel("reservas", r.id); fbDel("sitioWeb_ocupados", r.id); });
 
       // Sincronizar TODOS los eventos actuales con sitioWeb_ocupados (upsert idempotente).
