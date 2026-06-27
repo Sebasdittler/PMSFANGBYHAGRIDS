@@ -994,10 +994,13 @@ function App() {
       // aparecen en el feed actual, o que el dedup descartó en favor de un evento más informativo).
       const parsedIds = new Set(parsed.map(r=>r.id));
 
-      // Limpiar docs externos obsoletos de Firestore y de sitioWeb_ocupados
-      // IMPORTANTE: r.external === true (estricto) para nunca tocar reservas manuales
-      res.filter(r => r.external === true && r.pid===prop.id && !r.importedAs && !parsedIds.has(r.id))
-         .forEach(r => { fbDel("reservas", r.id); fbDel("sitioWeb_ocupados", r.id); });
+      // Limpiar docs externos obsoletos: solo reservas FUTURAS que ya no están en el feed
+      // (cancelaciones reales). Nunca borrar reservas del pasado ni feeds vacíos.
+      if (parsed.length > 0) {
+        res.filter(r => r.external === true && r.pid===prop.id && !r.importedAs
+                     && !parsedIds.has(r.id) && r.co >= TODAY)
+           .forEach(r => { fbDel("reservas", r.id); fbDel("sitioWeb_ocupados", r.id); });
+      }
 
       // Sincronizar TODOS los eventos actuales con sitioWeb_ocupados (upsert idempotente).
       // Así las fechas iCal quedan bloqueadas en la web aunque no hayan sido importadas.
@@ -1062,7 +1065,7 @@ function App() {
       }
     }
     setRecuperandoIcal(false);
-    showToast(`✅ ${total} reservas recuperadas de iCal. Recargá para ver los cambios.`);
+    showToast(`✅ ${total} reservas recuperadas de iCal`);
   };
 
   /* ─────────────────────────────────────────────────────
