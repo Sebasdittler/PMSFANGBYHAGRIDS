@@ -1044,35 +1044,35 @@ function App() {
   const recuperarHistorialIcal = async (nombresProp) => {
     const targetProps = props_.filter(p => nombresProp.some(n => (p.name||"").toLowerCase().includes(n.toLowerCase())));
     if (!targetProps.length) {
-      showToast("⚠️ No se encontraron las propiedades: " + nombresProp.join(", "));
+      alert("No se encontraron las propiedades: " + nombresProp.join(", "));
       return;
     }
     setRecuperandoIcal(true);
     let total = 0;
-    const errores = [];
+    const lineas = [];
     for (const prop of targetProps) {
       const urls = getIcalUrls(prop);
-      if (!urls.length) { errores.push(`${prop.name}: sin URL iCal`); continue; }
+      if (!urls.length) { lineas.push(`❌ ${prop.name}: sin URL iCal configurada`); continue; }
+      let contProp = 0;
       for (let urlIdx = 0; urlIdx < urls.length; urlIdx++) {
         try {
           const events = await fetchOneIcalUrl(urls[urlIdx], prop, urlIdx);
           const desde = events.filter(e => e.ci >= "2025-01-01");
           desde.forEach(ev => {
-            const data = { ...ev, ownerId: "system", paidAmount: 0, payments: [] };
-            fbSet("reservas", ev.id, data);
+            fbSet("reservas", ev.id, { ...ev, ownerId: "system", paidAmount: 0, payments: [] });
             fbSet("sitioWeb_ocupados", ev.id, { pid: ev.pid, ci: ev.ci, co: ev.co });
             total++;
+            contProp++;
           });
-          showToast(`${prop.name}: ${desde.length} reservas del feed`);
         } catch(e) {
-          errores.push(`${prop.name}: ${e.message}`);
-          showToast(`⚠️ ${prop.name}: no se pudo obtener el feed iCal`);
+          lineas.push(`❌ ${prop.name}: error al obtener el feed (${e.message})`);
         }
       }
+      if (contProp > 0) lineas.push(`✅ ${prop.name}: ${contProp} reservas recuperadas`);
+      else if (!lineas.some(l => l.includes(prop.name))) lineas.push(`⚠️ ${prop.name}: el feed de Airbnb no tiene datos disponibles`);
     }
     setRecuperandoIcal(false);
-    if (total > 0) showToast(`✅ ${total} reservas guardadas en total`);
-    if (errores.length) showToast(`⚠️ Errores: ${errores.join(" | ")}`);
+    alert(`Resultado de recuperación:\n\n${lineas.join("\n")}\n\nTotal guardadas: ${total}`);
   };
 
   /* ─────────────────────────────────────────────────────
