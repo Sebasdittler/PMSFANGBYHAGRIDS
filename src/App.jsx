@@ -971,7 +971,29 @@ function App() {
     try {
       // Fetch todas las URLs en paralelo
       const results = await Promise.all(urls.map((url, idx) => fetchOneIcalUrl(url, prop, idx)));
-      const parsed = results.flat();
+      const rawParsed = results.flat();
+
+      // Dedup: misma propiedad + mismas fechas exactas → quedarse con el evento más informativo.
+      // Airbnb envía la reserva real Y un bloque "Not available" con distinto UID para las mismas fechas.
+      // Si hay múltiples URLs (Airbnb + Booking) también bloquean las mismas fechas por separado.
+      const seen = new Map();
+      rawParsed.forEach(r => {
+        const key = `${r.pid}|${r.ci}|${r.co}`;
+        if (!seen.has(key)) {
+          seen.set(key, r);
+        } else {
+          const existing = seen.get(key);
+          // Preferir el que tiene nombre real sobre "🔒 Bloqueado"
+          if (existing.guest.includes("🔒") && !r.guest.includes("🔒")) seen.set(key, r);
+        }
+      });
+      const parsed = Array.from(seen.values());
+
+      // Limpiar docs externos obsoletos de Firestore (duplicados de syncs anteriores que ya no
+      // aparecen en el feed actual, o que el dedup descartó en favor de un evento más informativo).
+      const parsedIds = new Set(parsed.map(r=>r.id));
+      res.filter(r => r.external && r.pid===prop.id && !r.importedAs && !parsedIds.has(r.id))
+         .forEach(r => fbDel("reservas", r.id));
 
       // Detectar reservas realmente nuevas (ids que no existían antes en externalRes ni en Firestore)
       setExternalRes(prev => {
