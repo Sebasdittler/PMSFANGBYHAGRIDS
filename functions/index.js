@@ -66,7 +66,10 @@ async function sendPush(tokens, title, body) {
   const db = getFirestore();
   const resp = await getMessaging().sendEachForMulticast({
     data:    { title, body, url: APP_URL },
-    webpush: { fcmOptions: { link: APP_URL } },
+    webpush: {
+      notification: { title, body, icon: "/favicon-192.png", badge: "/favicon-32.png" },
+      fcmOptions:   { link: APP_URL },
+    },
     tokens,
   });
   // Limpiar tokens inválidos
