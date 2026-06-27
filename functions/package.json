@@ -2,7 +2,7 @@
   "name": "fang-functions",
   "version": "1.0.0",
   "description": "Cloud Functions para FANG — notificaciones FCM",
-  "engines": { "node": "20" },
+  "engines": { "node": "22" },
   "main": "index.js",
   "scripts": {
     "lint": "eslint ."
