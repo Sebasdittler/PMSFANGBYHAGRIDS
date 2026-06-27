@@ -1448,7 +1448,7 @@ function App() {
     const p=gp(rPid);
     // Criterio único: la reserva pertenece al mes de su check-in.
     // Evita que reservas que cruzan meses aparezcan en dos reportes.
-    const rr=res.filter(r=>r.pid===rPid&&(r.ci||"").startsWith(rMonth));
+    const rr=res.filter(r=>r.pid===rPid&&!r.external&&!r.importedAs&&(r.ci||"").startsWith(rMonth));
     // Señas: pagos parciales recibidos este mes, cuya reserva puede estar en otro período
     const senias=res.filter(r=>r.pid===rPid&&(r.paidAmount||0)>0&&r.seniaDate&&r.seniaDate.startsWith(rMonth)&&!(r.ci||"").startsWith(rMonth));
     const tt=tasks.filter(t=>t.pid===rPid&&(t.completedDate||t.date).startsWith(rMonth)&&t.status==="completado");
@@ -1488,7 +1488,7 @@ function App() {
     const diasEnAnio = +yr%4===0 ? 366 : 365;
     // Total nights occupied across the year for this property
     let diasOcupados=0;
-    res.filter(r=>r.pid===rPid).forEach(r=>{
+    res.filter(r=>r.pid===rPid&&!r.importedAs).forEach(r=>{
       const ci=toD(r.ci), co=toD(r.co);
       const yrStart=toD(`${yr}-01-01`), yrEnd=toD(`${yr}-12-31`);
       const start=ci<yrStart?yrStart:ci;
@@ -1501,7 +1501,7 @@ function App() {
       const mes=`${yr}-${String(i+1).padStart(2,"0")}`;
       const diasEnMes=new Date(+yr,i+1,0).getDate();
       let diasOcMes=0;
-      res.filter(r=>r.pid===rPid).forEach(r=>{
+      res.filter(r=>r.pid===rPid&&!r.importedAs).forEach(r=>{
         const ci=toD(r.ci), co=toD(r.co);
         const mStart=toD(`${mes}-01`);
         const mEnd=new Date(+yr,i+1,0); // último día del mes (sin hora → UTC midnight ok aquí)
@@ -1509,7 +1509,7 @@ function App() {
         const end=co>mEnd?mEnd:co;
         if(end>start) diasOcMes+=Math.round((end-start)/(1000*60*60*24));
       });
-      const rr=res.filter(r=>r.pid===rPid&&(r.ci||"").startsWith(mes));
+      const rr=res.filter(r=>r.pid===rPid&&!r.external&&!r.importedAs&&(r.ci||"").startsWith(mes));
       const tt=tasks.filter(t=>t.pid===rPid&&(t.completedDate||t.date).startsWith(mes)&&t.status==="completado");
       const gg=gastos.filter(g=>g.pid===rPid&&g.date.startsWith(mes));
       const lavItems=laundry.filter(l=>{
