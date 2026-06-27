@@ -1051,9 +1051,19 @@ function App() {
     let total = 0;
     const lineas = [];
     for (const prop of targetProps) {
-      const urls = getIcalUrls(prop);
-      if (!urls.length) { lineas.push(`❌ ${prop.name}: sin URL iCal configurada`); continue; }
       let contProp = 0;
+
+      // 1) Guardar lo que ya está en memoria (externalRes) — resultado del sync al abrir FANG
+      const enMemoria = externalRes.filter(r => r.pid === prop.id && r.ci >= "2025-01-01");
+      enMemoria.forEach(ev => {
+        fbSet("reservas", ev.id, { ...ev, ownerId: "system", paidAmount: 0, payments: [] });
+        fbSet("sitioWeb_ocupados", ev.id, { pid: ev.pid, ci: ev.ci, co: ev.co });
+        total++;
+        contProp++;
+      });
+
+      // 2) Intentar fetch fresco del iCal para obtener más datos
+      const urls = getIcalUrls(prop);
       for (let urlIdx = 0; urlIdx < urls.length; urlIdx++) {
         try {
           const events = await fetchOneIcalUrl(urls[urlIdx], prop, urlIdx);
@@ -1065,14 +1075,16 @@ function App() {
             contProp++;
           });
         } catch(e) {
-          lineas.push(`❌ ${prop.name}: error al obtener el feed (${e.message})`);
+          lineas.push(`⚠️ ${prop.name}: fetch iCal falló (${e.message})`);
         }
       }
-      if (contProp > 0) lineas.push(`✅ ${prop.name}: ${contProp} reservas recuperadas`);
-      else if (!lineas.some(l => l.includes(prop.name))) lineas.push(`⚠️ ${prop.name}: el feed de Airbnb no tiene datos disponibles`);
+
+      lineas.push(contProp > 0
+        ? `✅ ${prop.name}: ${contProp} reservas guardadas`
+        : `❌ ${prop.name}: sin datos en memoria ni en el feed`);
     }
     setRecuperandoIcal(false);
-    alert(`Resultado de recuperación:\n\n${lineas.join("\n")}\n\nTotal guardadas: ${total}`);
+    alert(`Resultado:\n\n${lineas.join("\n")}\n\nTotal: ${total} reservas guardadas en Firestore.`);
   };
 
   /* ─────────────────────────────────────────────────────
