@@ -359,7 +359,7 @@ function useReservas(showToast) {
       const cur  = reserva.cur === "USD" ? "USD" : "ARS";
       const monto= cur === "USD" ? `USD ${+(reserva.amt)||0}` : `ARS ${(+(reserva.amt)||0).toLocaleString("es-AR")}`;
       const quien= CURRENT_USER.role === "owner" ? ` · cargada por ${CURRENT_USER.email}` : "";
-      sendNotification(
+      sendBrowserNotif(
         "🏠 Nueva reserva en FANG",
         `${reserva.guest} · ${fmtD(reserva.ci)} → ${fmtD(reserva.co)} · ${monto}${quien}`
       );
