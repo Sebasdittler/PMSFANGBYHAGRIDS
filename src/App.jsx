@@ -3487,6 +3487,25 @@ function App() {
             <button className="fang-btn" style={C.btn("o")} onClick={()=>setShowRep(false)}>← Volver</button>
             <button className="fang-btn" style={C.btn("a")} onClick={()=>descargarPDF("report-mensual-content",`reporte-${d.label.replace(/\s+/g,"-")}-${d.p?.name?.replace(/\s+/g,"-")||"prop"}`,800)}>⬇️ PDF</button>
           </div>
+          {(()=>{
+            const icalPend=res.filter(r=>r.pid===rPid&&r.external&&!r.importedAs&&(r.ci||"").startsWith(rMonth)&&!/bloqueado|blocked/i.test(r.guest||""));
+            if(!icalPend.length) return null;
+            return (
+              <div style={{background:"#FEF3C7",border:"1.5px solid #F59E0B",borderRadius:10,padding:"12px 16px",marginBottom:16,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                <span style={{fontSize:20}}>⚠️</span>
+                <div style={{flex:1,minWidth:180}}>
+                  <div style={{fontWeight:700,fontSize:14,color:"#92400E"}}>
+                    {icalPend.length} reserva{icalPend.length>1?"s":""} iCal sin importar en {d.label}
+                  </div>
+                  <div style={{fontSize:12,color:"#92400E",marginTop:2}}>
+                    {icalPend.map(r=>`${r.guest} (${fmtD(r.ci)}→${fmtD(r.co)})`).join(" · ")}
+                  </div>
+                  <div style={{fontSize:11,color:"#B45309",marginTop:4}}>Pueden faltar ingresos en este informe. Importalas desde el calendario.</div>
+                </div>
+                <button className="fang-btn" style={{...C.btn("o"),fontSize:12,padding:"6px 14px",whiteSpace:"nowrap"}} onClick={()=>{setView("cal");setShowRep(false);}}>Ir al calendario →</button>
+              </div>
+            );
+          })()}
           <div id="report-mensual-content" style={{background:"#fff",borderRadius:12,padding:isMobile?"16px 12px":"32px 36px",maxWidth:700,margin:"0 auto",boxShadow:"0 2px 12px rgba(0,0,0,0.08)"}}>
             {/* Header */}
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24,paddingBottom:20,borderBottom:"2.5px solid #182820"}}>
