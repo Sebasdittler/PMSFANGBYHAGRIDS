@@ -548,6 +548,7 @@ function App() {
   const [externalRes,  setExternalRes]  = useState([]); // reservas de iCal (solo lectura)
   const [icalStatus,   setIcalStatus]   = useState({}); // {pid: "idle"|"loading"|"ok"|"error"}
   const [lastSyncTime, setLastSyncTime] = useState(null); // hora de última sync exitosa (Date obj)
+  const [recuperandoIcal, setRecuperandoIcal] = useState(false);
   // pagadoAProveedor migrado a campo en task/laundry (no más localStorage)
   const [cobradosIds,   setCobradosIds]   = useState([]);
   const comisionPct = 10; // porcentaje de comisión fijo
@@ -1034,6 +1035,34 @@ function App() {
   // Sincroniza todos los iCals de propiedades con URL configurada
   const syncAllIcals = () => {
     props_.forEach(p=>{ if(getIcalUrls(p).length > 0) fetchIcal(p); });
+  };
+
+  // Recupera historial iCal desde 2025-01-01 para propiedades seleccionadas (sin borrar nada)
+  const recuperarHistorialIcal = async (nombresProp) => {
+    const targetProps = props_.filter(p => nombresProp.some(n => (p.name||"").toLowerCase().includes(n.toLowerCase())));
+    if (!targetProps.length) { showToast("No se encontraron las propiedades"); return; }
+    setRecuperandoIcal(true);
+    let total = 0;
+    for (const prop of targetProps) {
+      const urls = getIcalUrls(prop);
+      for (let urlIdx = 0; urlIdx < urls.length; urlIdx++) {
+        try {
+          const events = await fetchOneIcalUrl(urls[urlIdx], prop, urlIdx);
+          const desde = events.filter(e => e.ci >= "2025-01-01");
+          desde.forEach(ev => {
+            const data = { ...ev, ownerId: "system", paidAmount: 0, payments: [] };
+            fbSet("reservas", ev.id, data);
+            fbSet("sitioWeb_ocupados", ev.id, { pid: ev.pid, ci: ev.ci, co: ev.co });
+            total++;
+          });
+          console.log(`[Recuperar] ${prop.name} url[${urlIdx}]: ${desde.length} eventos`);
+        } catch(e) {
+          console.warn(`[Recuperar] Error ${prop.name}:`, e.message);
+        }
+      }
+    }
+    setRecuperandoIcal(false);
+    showToast(`✅ ${total} reservas recuperadas de iCal. Recargá para ver los cambios.`);
   };
 
   /* ─────────────────────────────────────────────────────
@@ -2608,6 +2637,21 @@ function App() {
                 </span>}
                 {Object.values(icalStatus).some(s=>s==="error")&&!Object.values(icalStatus).some(s=>s==="loading")&&
                   <span style={{fontSize:9,color:"#C84040",whiteSpace:"nowrap"}}>⚠️ Error iCal: {Object.entries(icalStatus).filter(([,s])=>s==="error").map(([pid])=>props_.find(p=>p.id===pid)?.name||pid).join(", ")}</span>}
+              </div>
+            )}
+
+            {/* Recuperar historial iCal */}
+            {canWrite() && (
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                <button className="fang-btn"
+                  style={{...C.btn("d"),fontSize:11,display:"flex",alignItems:"center",gap:4,padding:"8px 14px",
+                    background:"#7a3c00",color:"#fff",opacity:recuperandoIcal?0.6:1}}
+                  onClick={()=>{ if(window.confirm("Esto va a recuperar todas las reservas disponibles en los feeds iCal de JPG, Live Patagonia y Ampel Hue desde enero 2025. ¿Continuar?")) recuperarHistorialIcal(["JPG","Live Patagonia","Ampel"]); }}
+                  disabled={recuperandoIcal}
+                  title="Recuperar historial de reservas desde iCal (desde enero 2025)">
+                  {recuperandoIcal?"⏳ Recuperando…":"♻️ Recuperar"}
+                </button>
+                {recuperandoIcal&&<span style={{fontSize:9,color:T.textMut,whiteSpace:"nowrap"}}>Importando…</span>}
               </div>
             )}
           </div>
