@@ -1396,7 +1396,7 @@ function App() {
     const icalUrls = Array.isArray(p.icalUrls) && p.icalUrls.length > 0
       ? p.icalUrls
       : (p.icalUrl ? [p.icalUrl] : []);
-    setPropF({name:p.name,owners:ownersArr,color:p.color,direccion:p.direccion||"",dormitorios:dorms,notas:p.notas||"",icalUrls});
+    setPropF({name:p.name,owners:ownersArr,color:p.color,direccion:p.direccion||"",dormitorios:dorms,notas:p.notas||"",icalUrls,mascotas:!!p.mascotas});
     setEditPropId(p.id); setShowPM(true);
   };
   const saveEditProp = () => {
@@ -6086,6 +6086,13 @@ function App() {
               </div>
             </div>
           ))}
+        </div>
+
+        <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0"}}>
+          <input type="checkbox" id="prop-mascotas" checked={!!propF.mascotas}
+            onChange={e=>setPropF(f=>({...f,mascotas:e.target.checked}))}
+            style={{width:18,height:18,cursor:"pointer",accentColor:T.primary}}/>
+          <label htmlFor="prop-mascotas" style={{...C.lbl,margin:0,cursor:"pointer"}}>🐾 Acepta mascotas (pet friendly)</label>
         </div>
 
         <div>
