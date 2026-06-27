@@ -69,7 +69,8 @@ export async function initFCM(userId, userEmail) {
 
     // 4. Manejar mensajes cuando la app está en primer plano
     getMsg().onMessage((payload) => {
-      const { title, body } = payload.notification || {};
+      const title = payload.data?.title;
+      const body  = payload.data?.body || "";
       if (!title || Notification.permission !== "granted") return;
       try {
         new Notification(title, {

@@ -63,16 +63,8 @@ exports.notificarNuevaReserva = onDocumentCreated(
     const body  = `${guest}${propNombre ? " · " + propNombre : ""} · ${ci} → ${co}`;
 
     const message = {
-      notification: { title, body },
-      webpush: {
-        notification: {
-          icon:               `${APP_URL}/favicon-192.png`,
-          badge:              `${APP_URL}/favicon-32.png`,
-          requireInteraction: true,
-          vibrate:            [200, 100, 200],
-        },
-        fcmOptions: { link: APP_URL },
-      },
+      data: { title, body, url: APP_URL },
+      webpush: { fcmOptions: { link: APP_URL } },
       tokens,
     };
 

@@ -16,14 +16,12 @@ const messaging = firebase.messaging();
 
 // Se dispara cuando llega una notificación y la app está cerrada o en background
 messaging.onBackgroundMessage((payload) => {
-  const notification = payload.notification || {};
-  const title = notification.title || "FANG";
-  const body  = notification.body  || "";
-  const icon  = notification.icon  || "/favicon-192.png";
+  const title = payload.data?.title || "FANG";
+  const body  = payload.data?.body  || "";
 
   self.registration.showNotification(title, {
     body,
-    icon,
+    icon:               "/favicon-192.png",
     badge:              "/favicon-32.png",
     requireInteraction: true,
     vibrate:            [200, 100, 200],
