@@ -992,8 +992,14 @@ function App() {
       // Limpiar docs externos obsoletos de Firestore (duplicados de syncs anteriores que ya no
       // aparecen en el feed actual, o que el dedup descartó en favor de un evento más informativo).
       const parsedIds = new Set(parsed.map(r=>r.id));
+
+      // Limpiar docs externos obsoletos de Firestore y de sitioWeb_ocupados
       res.filter(r => r.external && r.pid===prop.id && !r.importedAs && !parsedIds.has(r.id))
-         .forEach(r => fbDel("reservas", r.id));
+         .forEach(r => { fbDel("reservas", r.id); fbDel("sitioWeb_ocupados", r.id); });
+
+      // Sincronizar TODOS los eventos actuales con sitioWeb_ocupados (upsert idempotente).
+      // Así las fechas iCal quedan bloqueadas en la web aunque no hayan sido importadas.
+      parsed.forEach(r => fbSet("sitioWeb_ocupados", r.id, {pid:r.pid, ci:r.ci, co:r.co}));
 
       // Detectar reservas realmente nuevas (ids que no existían antes en externalRes ni en Firestore)
       setExternalRes(prev => {
