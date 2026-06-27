@@ -67,8 +67,13 @@ async function sendPush(tokens, title, body) {
   const resp = await getMessaging().sendEachForMulticast({
     data:    { title, body, url: APP_URL },
     webpush: {
-      notification: { title, body, icon: "/favicon-192.png", badge: "/favicon-32.png" },
-      fcmOptions:   { link: APP_URL },
+      notification: {
+        title,
+        body,
+        icon:  APP_URL + "/favicon-192.png",
+        badge: APP_URL + "/favicon-32.png",
+      },
+      fcmOptions: { link: APP_URL },
     },
     tokens,
   });
