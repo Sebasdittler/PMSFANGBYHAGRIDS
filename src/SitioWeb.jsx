@@ -135,7 +135,7 @@ const WEB_VACIO = {
   capacidad: "", camas: "", banos: "",
   precio: "", moneda: "USD", sitioUrl: "",
   amenities: [], fotos: [], fotoUrl: "",
-  mostrarEnWeb: false, orden: 99,
+  mascotas: false, mostrarEnWeb: false, orden: 99,
   tarifas: [
     TEMP_VACIA("Temporada alta",  "#D6C2A1"),
     TEMP_VACIA("Temporada media", "#7A8A77"),
@@ -738,7 +738,7 @@ export default function SitioWeb() {
   async function guardar() {
     if (!window._db||!modal) return; setSaving(true);
     try {
-      const data = { nombre:form.nombreWeb.trim()||modal.name, nombreFang:modal.name, descripcion:form.descripcion.trim(), tipo:form.tipo, capacidad:Number(form.capacidad)||0, camas:Number(form.camas)||0, banos:Number(form.banos)||0, precio:Number(form.precio)||0, moneda:form.moneda, amenities:form.amenities, tarifas:form.tarifas||[], fotos:form.fotos||[], fotoUrl:form.fotos?.[0]||form.fotoUrl||"", sitioUrl:form.sitioUrl?.trim()||"", mostrarEnWeb:Boolean(form.mostrarEnWeb), orden:Number(form.orden)||99, updatedAt:window.firebase.firestore.FieldValue.serverTimestamp() };
+      const data = { nombre:form.nombreWeb.trim()||modal.name, nombreFang:modal.name, descripcion:form.descripcion.trim(), tipo:form.tipo, capacidad:Number(form.capacidad)||0, camas:Number(form.camas)||0, banos:Number(form.banos)||0, precio:Number(form.precio)||0, moneda:form.moneda, amenities:form.amenities, tarifas:form.tarifas||[], fotos:form.fotos||[], fotoUrl:form.fotos?.[0]||form.fotoUrl||"", sitioUrl:form.sitioUrl?.trim()||"", mostrarEnWeb:Boolean(form.mostrarEnWeb), mascotas:Boolean(form.mascotas), orden:Number(form.orden)||99, updatedAt:window.firebase.firestore.FieldValue.serverTimestamp() };
       const docRef = window._db.collection(COLL_WEB).doc(modal.id);
       if (webData[modal.id]) { await docRef.update(data); }
       else { data.createdAt=window.firebase.firestore.FieldValue.serverTimestamp(); await docRef.set(data); }
@@ -1126,6 +1126,16 @@ export default function SitioWeb() {
                     ))}
                   </div>
                 )}
+              </Seccion>
+
+              <Seccion titulo="Pet friendly">
+                <label style={{ display:"flex", alignItems:"center", gap:14, cursor:"pointer", background:form.mascotas?C.greenDim:"rgba(44,44,44,0.02)", border:`1px solid ${form.mascotas?C.greenBrd:C.border}`, borderRadius:10, padding:"1rem 1.2rem", transition:"all 0.2s" }}>
+                  <input type="checkbox" checked={!!form.mascotas} onChange={e=>setForm(f=>({...f,mascotas:e.target.checked}))} style={{ width:18, height:18, cursor:"pointer", accentColor:C.green }}/>
+                  <div>
+                    <span style={{ fontSize:"0.92rem", color:form.mascotas?C.green:C.muted, fontWeight:600 }}>{form.mascotas?"🐾 Acepta mascotas":"No acepta mascotas"}</span>
+                    <p style={{ fontSize:"0.75rem", color:C.muted, marginTop:3 }}>Activa el filtro pet friendly en el buscador de la web.</p>
+                  </div>
+                </label>
               </Seccion>
 
               <Seccion titulo="Visibilidad en la web">
