@@ -4495,6 +4495,61 @@ function App() {
     </div>
   );
 
+  /* ── Cotizar por fechas: misma lógica de temporadas que el calendario de la web pública ──
+     (portado 1:1 de Webhagrids/index.html — getTempForDate / calcularPrecio) */
+  const normalizeMmDdWeb = (s) => {
+    if (!s) return "";
+    s = String(s).trim();
+    if (/^\d{2}-\d{2}$/.test(s)) return s;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s.slice(5);
+    const parts = s.split(/[-\/]/);
+    if (parts.length === 3 && parts[2].length === 4) return parts[1].padStart(2,"0")+"-"+parts[0].padStart(2,"0");
+    return "";
+  };
+  const getTempForDateWeb = (tarifas, date) => {
+    if (!tarifas?.length) return null;
+    const mm = String(date.getMonth()+1).padStart(2,"0");
+    const dd = String(date.getDate()).padStart(2,"0");
+    const key = mm+"-"+dd;
+    for (const t of tarifas) {
+      for (const r of (t.rangos||[])) {
+        if (!r.desde || !r.hasta) continue;
+        const desde = normalizeMmDdWeb(r.desde), hasta = normalizeMmDdWeb(r.hasta);
+        if (desde > hasta) { if (key >= desde || key <= hasta) return t; }
+        else { if (key >= desde && key <= hasta) return t; }
+      }
+    }
+    return null;
+  };
+  const calcularPrecioWeb = (tarifas, desde, hasta, guests) => {
+    if (!desde || !hasta || !tarifas?.length) return null;
+    const grupos = {};
+    const cur = new Date(desde);
+    while (cur < hasta) {
+      const t = getTempForDateWeb(tarifas, cur);
+      if (t) { if (!grupos[t.nombre]) grupos[t.nombre] = { temp:t, noches:0 }; grupos[t.nombre].noches++; }
+      cur.setDate(cur.getDate()+1);
+    }
+    if (!Object.keys(grupos).length) return null;
+    const tempPrincipal = Object.values(grupos).sort((a,b)=>b.noches-a.noches)[0];
+    const minimo = Number(tempPrincipal.temp.minimoNoches) || 0;
+    const totalNoches = Object.values(grupos).reduce((s,g)=>s+g.noches,0);
+    const result = { lineas:[], total:0, totalNoches, warn:null };
+    if (minimo > 0 && totalNoches < minimo) {
+      result.warn = `Mínimo ${minimo} noches en ${tempPrincipal.temp.nombre.toLowerCase()}. Se puede cotizar igual como excepción.`;
+    }
+    for (const g of Object.values(grupos)) {
+      const base = Number(g.temp.precioBase) || 0;
+      const incl = Number(g.temp.huespedes) || 0;
+      const extra = Number(g.temp.extraPorHuesped) || 0;
+      const extras = Math.max(0, guests - incl) * extra;
+      const subtotal = (base + extras) * g.noches;
+      result.total += subtotal;
+      result.lineas.push({ nombre:g.temp.nombre, color:g.temp.color, noches:g.noches, base, extras, subtotal });
+    }
+    return result;
+  };
+
   const Cotizador = () => {
     const { useState: useS } = React;
 
@@ -4508,8 +4563,20 @@ function App() {
       baja:  { cur:"USD", precio:0 },
     }));
     const [tarifas, setTarifas] = useS(emptyTarifas);
-    const [tabCot, setTabCot] = useS("tarifas"); // "tarifas" | "armado" | "portal" | "comision"
+    const [tabCot, setTabCot] = useS("tarifas"); // "tarifas" | "fechas" | "armado" | "portal" | "comision"
     const [propTab, setPropTab] = useS(allowedProps[0]?.id || "p1");
+
+    /* ── Tarifas por fecha — misma fuente que el Sitio Web público (colección sitioWeb_propiedades) ── */
+    const [webTarifas, setWebTarifas] = useS({}); // {pid: {tarifas:[...], moneda, nombre, ...}}
+    useEffect(() => {
+      if (!window._db) return;
+      const unsub = window._db.collection("sitioWeb_propiedades").onSnapshot(snap => {
+        const map = {};
+        snap.docs.forEach(d => { map[d.id] = d.data(); });
+        setWebTarifas(map);
+      }, () => {});
+      return () => unsub();
+    }, []);
 
     /* ── Tab Armado de precio ── */
     const [armCur,       setArmCur]       = useS("USD");
@@ -4565,6 +4632,16 @@ function App() {
     };
 
     const getTarifa = pid => tarifas.find(t => t.pid === pid) || emptyTarifas().find(t => t.pid === pid);
+
+    /* ── Cálculo por fechas (temporada automática, misma lógica que la web) ── */
+    const fechasCalc = (() => {
+      const wp = webTarifas[propTab];
+      if (!wp?.tarifas?.length || !presupCI || !presupCO) return null;
+      const desde = new Date(presupCI+"T00:00:00");
+      const hasta = new Date(presupCO+"T00:00:00");
+      if (!(hasta > desde)) return null;
+      return calcularPrecioWeb(wp.tarifas, desde, hasta, safeN(simPax) || 1);
+    })();
 
     /* ── Cálculo armado ── */
     const armCalc = (() => {
@@ -4654,6 +4731,7 @@ function App() {
         <div style={{display:"flex",background:T.bgInput,borderRadius:12,padding:4,marginBottom:24,gap:2}}>
           {[
             {k:"tarifas", label:"🏷️ Tarifas", title:"Tarifas por temporada"},
+            {k:"fechas",  label:"📅 Por fechas", title:"Cotizar por fechas y casa (temporada automática)"},
             {k:"armado",  label:"🧮 Armado de precio", title:"Calculadora inversa"},
             {k:"portal",  label:"🌐 Precio para portales", title:"Portales externos"},
             {k:"comision",label:"💰 Comisión", title:"Calculadora de comisión"},
@@ -4896,6 +4974,180 @@ function App() {
                       </div>
                     );
                   })()}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* ── TAB: POR FECHAS (temporada automática, misma lógica que el calendario de la web) ── */}
+        {tabCot === "fechas" && (
+          <div style={{maxWidth:560}}>
+            <div style={{...C.sec,marginBottom:16}}>
+              <div style={C.secT}>📅 Cotizar por fechas y casa</div>
+              <div style={{fontSize:13,color:T.textMut,marginTop:4,marginBottom:20,lineHeight:1.6}}>
+                Elegí la propiedad y las fechas de la estadía: la temporada de cada noche se detecta
+                automáticamente con las tarifas cargadas en <strong>Sitio Web → Propiedades → Tarifas por temporada</strong>,
+                igual que en el calendario de la web pública. Si la estadía cruza temporadas, el total se calcula
+                sumando las noches de cada una por separado.
+              </div>
+
+              {/* Selector de propiedad */}
+              <div style={{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}}>
+                {allowedProps.map(p=>(
+                  <button key={p.id}
+                    style={{padding:"8px 16px",borderRadius:20,border:`2px solid ${propTab===p.id?p.color:T.border}`,
+                      background:propTab===p.id?p.color+"22":"transparent",
+                      color:propTab===p.id?p.color:T.textSub,
+                      fontWeight:propTab===p.id?700:400,cursor:"pointer",fontSize:13,transition:"all .15s"}}
+                    onClick={()=>setPropTab(p.id)}>
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+
+              {(()=>{
+                const p  = props_.find(x=>x.id===propTab);
+                const wp = webTarifas[propTab];
+                if (!wp?.tarifas?.length) return (
+                  <div style={{background:T.bgInput,borderRadius:12,padding:"16px 18px",fontSize:13,color:T.textMut,lineHeight:1.6}}>
+                    ⚠️ <strong>{p?.name||"Esta propiedad"}</strong> todavía no tiene tarifas por fecha configuradas.
+                    Cargalas en <strong>Sitio Web → Propiedades → Tarifas por temporada</strong> para poder cotizar por fechas.
+                    <div style={{marginTop:12}}>
+                      <button className="fang-btn" style={C.btn("o")} onClick={()=>setView("sitioWeb")}>→ Ir a Sitio Web</button>
+                    </div>
+                  </div>
+                );
+
+                return (
+                  <>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+                      <div><label style={C.lbl}>Check-in</label><input type="date" style={{...C.inp,marginBottom:0}} value={presupCI} onChange={e=>{const ci=e.target.value;setPresupCI(ci);if(!presupCO||presupCO<=ci){const d=new Date(ci+"T00:00:00");d.setDate(d.getDate()+1);setPresupCO(d.toISOString().slice(0,10));}}}/></div>
+                      <div><label style={C.lbl}>Check-out</label><input type="date" style={{...C.inp,marginBottom:0}} value={presupCO} onChange={e=>setPresupCO(e.target.value)}/></div>
+                    </div>
+
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
+                      <div>
+                        <label style={C.lbl}>Adultos</label>
+                        <div style={{display:"flex",alignItems:"center",gap:10}}>
+                          <button onClick={()=>setSimPax(v=>Math.max(1,v-1))}
+                            style={{width:32,height:32,borderRadius:8,border:`1.5px solid ${T.border}`,background:T.bgInput,cursor:"pointer",fontSize:18,lineHeight:1}}>−</button>
+                          <span style={{fontSize:18,fontWeight:800,minWidth:24,textAlign:"center"}}>{simPax}</span>
+                          <button onClick={()=>setSimPax(v=>v+1)}
+                            style={{width:32,height:32,borderRadius:8,border:`1.5px solid ${T.border}`,background:T.bgInput,cursor:"pointer",fontSize:18,lineHeight:1}}>+</button>
+                        </div>
+                      </div>
+                      <div>
+                        <label style={C.lbl}>Bebés &lt;2 años (sin cargo)</label>
+                        <div style={{display:"flex",alignItems:"center",gap:10}}>
+                          <button onClick={()=>setSimBebes(v=>Math.max(0,v-1))}
+                            style={{width:32,height:32,borderRadius:8,border:`1.5px solid ${T.border}`,background:T.bgInput,cursor:"pointer",fontSize:18,lineHeight:1}}>−</button>
+                          <span style={{fontSize:18,fontWeight:800,minWidth:24,textAlign:"center"}}>{simBebes}</span>
+                          <button onClick={()=>setSimBebes(v=>v+1)}
+                            style={{width:32,height:32,borderRadius:8,border:`1.5px solid ${T.border}`,background:T.bgInput,cursor:"pointer",fontSize:18,lineHeight:1}}>+</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {!fechasCalc && presupCI && presupCO && (
+                      <div style={{fontSize:13,color:T.textMut,marginBottom:12}}>
+                        No hay tarifa configurada para esas fechas. Revisá los rangos de temporada en Sitio Web.
+                      </div>
+                    )}
+
+                    {fechasCalc && (
+                      <div style={{background:T.bgAccent,borderRadius:14,padding:"18px 16px",border:`1px solid ${T.border}`}}>
+                        <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1.5,color:T.textMut,marginBottom:14}}>
+                          Desglose por temporada
+                        </div>
+                        <div style={{background:T.bgInput,borderRadius:12,padding:"12px 14px",marginBottom:14}}>
+                          {fechasCalc.lineas.map(l=>(
+                            <div key={l.nombre} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${T.borderRow}`,fontSize:13}}>
+                              <span style={{color:T.textSub}}>{l.noches} noche{l.noches!==1?"s":""} · {l.nombre}{l.extras>0?" (+extra x huésped)":""}</span>
+                              <span style={{fontWeight:700,color:l.color||"#245040"}}>{fmtN(Math.round(l.subtotal),wp.moneda||"USD")}</span>
+                            </div>
+                          ))}
+                          <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0 0",fontSize:15,fontWeight:800}}>
+                            <span>Total ({fechasCalc.totalNoches} noches)</span>
+                            <span style={{color:"#245040"}}>{fmtN(Math.round(fechasCalc.total),wp.moneda||"USD")}</span>
+                          </div>
+                        </div>
+                        {fechasCalc.warn && (
+                          <div style={{fontSize:12,color:"#B5743E",lineHeight:1.5}}>⚠ {fechasCalc.warn}</div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+
+            {/* ── Presupuesto PDF — Tab Por fechas ── */}
+            {fechasCalc && (()=>{
+              const p  = props_.find(x=>x.id===propTab);
+              const wp = webTarifas[propTab];
+              const cur = wp?.moneda || "USD";
+              return (
+                <div style={{...C.sec}}>
+                  <div style={{...C.secH,marginBottom:14}}>
+                    <div style={C.secT}>📄 Generar cotización</div>
+                  </div>
+                  <label style={C.lbl}>📝 Notas (descuentos, formas de pago, etc.)</label>
+                  <textarea style={{...C.inp,resize:"vertical",minHeight:60,marginBottom:16,lineHeight:1.5}} placeholder="Ej: Incluye limpieza final. Seña del 30% al confirmar." value={presupNotas} onChange={e=>setPresupNotas(e.target.value)}/>
+
+                  <button className="fang-btn" style={{...C.btn("o"),marginBottom:16}}
+                    onClick={()=>setPresupVista(true)}>
+                    👁 Vista previa
+                  </button>
+                  <button className="fang-btn" style={{...C.btn("a"),marginBottom:16}}
+                    onClick={()=>descargarPDF("presupuesto-pdf-content",`cotizacion-${p?.name?.replace(/\s+/g,"-")||"propiedad"}`)}>
+                    ⬇️ Descargar cotización PDF
+                  </button>
+
+                  {/* Contenedor capturado por html2pdf — también funciona como preview */}
+                  <div id="presupuesto-pdf-content" style={{background:"#fff",borderRadius:12,padding:"32px 28px",border:`1px solid ${T.border}`,maxWidth:480,margin:"0 auto"}}>
+                    <div style={{textAlign:"center",marginBottom:24,paddingBottom:20,borderBottom:"2px solid #245040"}}>
+                      <img src={LOGO_B64} alt="AUCEN"
+                        style={{width:88,height:88,borderRadius:"50%",objectFit:"cover",objectPosition:"center",display:"block",margin:"0 auto 12px"}}/>
+                      <div style={{fontFamily:"'Cinzel',serif",fontSize:24,fontWeight:800,color:"#1a2420",letterSpacing:1.5}}>Cotización</div>
+                      {p?.name&&<div style={{fontSize:16,fontWeight:700,color:"#245040",marginTop:6}}>{p.name}</div>}
+                      <div style={{fontSize:11,color:"#a8b0a0",marginTop:8,letterSpacing:1}}>AUCEN · {fmtD(TODAY)}</div>
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:18}}>
+                      {[
+                        ["Propiedad", p?.name||"—"],
+                        ["Check-in", fmtD(presupCI)],
+                        ["Check-out", fmtD(presupCO)],
+                        ["Noches", String(fechasCalc.totalNoches)],
+                        ["Adultos", String(simPax)],
+                        ...(simBebes>0?[["Bebés <2a", String(simBebes)]]:[] ),
+                      ].map(([l,v])=>(
+                        <div key={l} style={{background:"#f7f6f2",borderRadius:8,padding:"10px 12px"}}>
+                          <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:1,color:"#9DAB98",marginBottom:3}}>{l}</div>
+                          <div style={{fontSize:14,fontWeight:700,color:"#1a2420"}}>{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{borderTop:"1px solid #e8e5de",paddingTop:14,marginBottom:14}}>
+                      {fechasCalc.lineas.map(l=>(
+                        <div key={l.nombre} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",fontSize:13,borderBottom:"1px solid #f0ede6"}}>
+                          <span style={{color:"#526050"}}>{l.noches} noche{l.noches!==1?"s":""} en {l.nombre.toLowerCase()}</span>
+                          <span style={{fontWeight:700,color:"#245040"}}>{fmtN(Math.round(l.subtotal),cur)}</span>
+                        </div>
+                      ))}
+                      <div style={{display:"flex",justifyContent:"space-between",padding:"12px 0",fontSize:16,fontWeight:800}}>
+                        <span>Total estadía ({fechasCalc.totalNoches} noches)</span>
+                        <span style={{color:"#245040"}}>{fmtN(Math.round(fechasCalc.total),cur)}</span>
+                      </div>
+                    </div>
+                    {presupNotas&&<div style={{background:"#f4f7f2",borderLeft:"4px solid #3B6E52",borderRadius:"0 8px 8px 0",padding:"12px 16px",fontSize:13,color:"#526050",lineHeight:1.6,marginBottom:14}}>
+                      <strong style={{color:"#245040",display:"block",marginBottom:4}}>📝 Notas</strong>
+                      {presupNotas}
+                    </div>}
+                    <div style={{fontSize:11,color:"#b0b8a8",textAlign:"center",borderTop:"1px solid #e8e5de",paddingTop:12}}>
+                      Cotización generada el {fmtD(TODAY)} · AUCEN
+                    </div>
+                  </div>
                 </div>
               );
             })()}
@@ -5339,6 +5591,20 @@ function App() {
               ...(armCalc.huespedesPagos>0?[["Adultos",String(armCalc.huespedesPagos)]]:[] ),
               ...(safeN(armBebes)>0?[["Bebés <2a",String(safeN(armBebes))]]:[] ),
             ];
+          } else if(tabCot==="fechas"&&fechasCalc){
+            const p3 = props_.find(x=>x.id===propTab);
+            const wp3 = webTarifas[propTab];
+            precioPorNoche = null; // no aplica: se muestra el desglose por temporada
+            totalBruto     = Math.round(fechasCalc.total);
+            cur            = wp3?.moneda||"USD";
+            titulo         = p3?.name||"";
+            filas = [
+              ...(presupCI?[["Check-in",fmtD(presupCI)]]:[] ),
+              ...(presupCO?[["Check-out",fmtD(presupCO)]]:[] ),
+              ["Noches", String(fechasCalc.totalNoches)],
+              ["Adultos", String(simPax)],
+              ...(simBebes>0?[["Bebés <2a",String(simBebes)]]:[] ),
+            ];
           } else {
             const p2 = props_.find(x=>x.id===propTab);
             const t2 = getTarifa(propTab);
@@ -5357,8 +5623,8 @@ function App() {
             ];
           }
           const fmtV = v => cur==="USD"?$$usd(v):$$(v);
-          const tempColor = TEMP_COLORS[presupTemp];
-          const tempLabel = TEMP_LABELS[presupTemp];
+          const tempColor = tabCot==="fechas" ? null : TEMP_COLORS[presupTemp];
+          const tempLabel = tabCot==="fechas" ? null : TEMP_LABELS[presupTemp];
           const filename  = tabCot==="armado"
             ? "cotizacion-cotizador"
             : `cotizacion-${props_.find(x=>x.id===propTab)?.name?.replace(/\s+/g,"-")||"propiedad"}`;
@@ -5397,17 +5663,34 @@ function App() {
                       ))}
                     </div>
                     <div style={{borderTop:"1px solid #e8e5de",paddingTop:14,marginBottom:14}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",fontSize:14,borderBottom:"1px solid #f0ede6"}}>
-                        <span style={{color:"#526050",display:"flex",alignItems:"center",gap:8}}>
-                          Precio por noche
-                          {tempLabel&&<span style={{fontSize:11,background:tempColor+"22",color:tempColor,borderRadius:20,padding:"1px 8px",fontWeight:700}}>{tempLabel}</span>}
-                        </span>
-                        <span style={{fontWeight:700,color:"#245040"}}>{fmtV(precioPorNoche)}</span>
-                      </div>
-                      {totalBruto&&<div style={{display:"flex",justifyContent:"space-between",padding:"12px 0",fontSize:16,fontWeight:800}}>
-                        <span>Total estadía{nochesNum?` (${nochesNum} noches)`:""}</span>
-                        <span style={{color:"#245040"}}>{fmtV(totalBruto)}</span>
-                      </div>}
+                      {tabCot==="fechas"&&fechasCalc ? (
+                        <>
+                          {fechasCalc.lineas.map(l=>(
+                            <div key={l.nombre} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",fontSize:14,borderBottom:"1px solid #f0ede6"}}>
+                              <span style={{color:"#526050"}}>{l.noches} noche{l.noches!==1?"s":""} en {l.nombre.toLowerCase()}</span>
+                              <span style={{fontWeight:700,color:"#245040"}}>{fmtV(Math.round(l.subtotal))}</span>
+                            </div>
+                          ))}
+                          <div style={{display:"flex",justifyContent:"space-between",padding:"12px 0",fontSize:16,fontWeight:800}}>
+                            <span>Total estadía ({fechasCalc.totalNoches} noches)</span>
+                            <span style={{color:"#245040"}}>{fmtV(totalBruto)}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",fontSize:14,borderBottom:"1px solid #f0ede6"}}>
+                            <span style={{color:"#526050",display:"flex",alignItems:"center",gap:8}}>
+                              Precio por noche
+                              {tempLabel&&<span style={{fontSize:11,background:tempColor+"22",color:tempColor,borderRadius:20,padding:"1px 8px",fontWeight:700}}>{tempLabel}</span>}
+                            </span>
+                            <span style={{fontWeight:700,color:"#245040"}}>{fmtV(precioPorNoche)}</span>
+                          </div>
+                          {totalBruto&&<div style={{display:"flex",justifyContent:"space-between",padding:"12px 0",fontSize:16,fontWeight:800}}>
+                            <span>Total estadía{nochesNum?` (${nochesNum} noches)`:""}</span>
+                            <span style={{color:"#245040"}}>{fmtV(totalBruto)}</span>
+                          </div>}
+                        </>
+                      )}
                     </div>
                     {presupNotas&&<div style={{background:"#f4f7f2",borderLeft:"4px solid #3B6E52",borderRadius:"0 8px 8px 0",padding:"12px 16px",fontSize:13,color:"#526050",lineHeight:1.6,marginBottom:14}}>
                       <strong style={{color:"#245040",display:"block",marginBottom:4}}>📝 Notas</strong>
