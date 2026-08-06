@@ -994,11 +994,11 @@ function App() {
       // aparecen en el feed actual, o que el dedup descartó en favor de un evento más informativo).
       const parsedIds = new Set(parsed.map(r=>r.id));
 
-      // Limpiar docs externos obsoletos: solo reservas FUTURAS que ya no están en el feed
-      // (cancelaciones reales). Nunca borrar reservas del pasado ni feeds vacíos.
+      // Limpiar solo bloqueos no-importados que ya no están en el feed (bloques vencidos o con UID rotado).
+      // Reservas reales y registros con importedAs nunca se borran automáticamente.
       if (parsed.length > 0) {
         res.filter(r => r.external === true && r.pid===prop.id && !r.importedAs
-                     && !parsedIds.has(r.id) && r.co >= TODAY)
+                     && !parsedIds.has(r.id) && /bloqueado|blocked/i.test(r.guest||""))
            .forEach(r => { fbDel("reservas", r.id); fbDel("sitioWeb_ocupados", r.id); });
       }
 
@@ -1015,13 +1015,17 @@ function App() {
           nuevas.forEach(r => {
             // Guardar en Firestore para que bloquee fechas entre sesiones
             fbSet("reservas", r.id, {...r, ownerId:"system", paidAmount:0, payments:[]});
-            // Push notification (email lo maneja notificarNuevaReservaIcal debajo)
-            sendBrowserNotif(
-              `📅 Nueva reserva iCal — ${prop.name}`,
-              `${r.guest||"Huésped"} · ${fmtD(r.ci)} → ${fmtD(r.co)}`
-            );
+            // Push notification — bloqueos solo si empiezan en más de 7 días (evita spam de bloques rotativos)
+            const _isBlk = /bloqueado|blocked/i.test(r.guest||"");
+            const _blkThresh = (()=>{ const d=new Date(TODAY); d.setDate(d.getDate()+7); return d.toISOString().slice(0,10); })();
+            if(!_isBlk || r.ci > _blkThresh) {
+              sendBrowserNotif(
+                `📅 Nueva reserva iCal — ${prop.name}`,
+                `${r.guest||"Huésped"} · ${fmtD(r.ci)} → ${fmtD(r.co)}`
+              );
+            }
             // Email notification — solo para reservas reales, no para bloqueos genéricos
-            if(!/bloqueado|blocked/i.test(r.guest||"")) {
+            if(!_isBlk) {
               notificarNuevaReservaIcal(r, prop.name);
             }
           });
